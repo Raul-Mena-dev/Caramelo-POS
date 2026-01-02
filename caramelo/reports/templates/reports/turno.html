@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Corte por turno - {{ turno.caja_nombre }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Corte por turno</h3>
+    <div class="text-muted">
+      Caja: <b>{{ turno.caja_nombre }}</b> |
+      Usuario: <b>{{ turno.usuario.username }}</b>
+    </div>
+    <div class="text-muted">
+      Apertura: {{ turno.apertura }} |
+      Cierre: {{ turno.cierre|default:"—" }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'pos_home' %}">Volver al POS</a>
+    <a class="btn btn-outline-success"
+       href="{% url 'corte_turno_pdf' turno.id %}">
+      Imprimir PDF
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">Total vendido</div>
+        <div class="fs-2 fw-bold">${{ totales.total|default:"0.00" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">Tickets</div>
+        <div class="fs-2 fw-bold">{{ totales.tickets|default:"0" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">Ticket promedio</div>
+        <div class="fs-2 fw-bold">${{ promedio|floatformat:2 }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-bold">Por método de pago</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Método</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Tickets</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in por_metodo %}
+              <tr>
+                <td>{{ r.metodo_pago }}</td>
+                <td class="text-end fw-bold">${{ r.total }}</td>
+                <td class="text-end">{{ r.tickets }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-center text-muted py-4">Sin ventas</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-bold">Caja (efectivo)</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <span>Fondo inicial</span>
+          <b>${{ turno.fondo_inicial }}</b>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Efectivo ventas</span>
+          <b>${{ turno.total_efectivo }}</b>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between">
+          <span>Efectivo contado</span>
+          <b>${{ turno.efectivo_contado }}</b>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Diferencia</span>
+          <b class="{% if turno.diferencia_efectivo < 0 %}text-danger{% elif turno.diferencia_efectivo > 0 %}text-success{% endif %}">
+            ${{ turno.diferencia_efectivo }}
+          </b>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <div class="fw-bold">Top productos (cantidad)</div>
+    <span class="badge text-bg-secondary">Top 10</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th class="text-end">Cantidad</th>
+            <th class="text-end">Dinero</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in top %}
+          <tr>
+            <td>{{ r.producto__nombre }}</td>
+            <td class="text-end">{{ r.cantidad }}</td>
+            <td class="text-end fw-bold">${{ r.dinero }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-center text-muted py-4">Sin ventas</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

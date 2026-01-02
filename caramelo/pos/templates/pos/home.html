@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}POS - Caramelo{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- BUSCADOR -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="get" class="input-group input-group-lg mb-3">
+          <input id="buscar"
+            name="q"
+            value="{{ q }}"
+            autofocus
+            class="form-control"
+            placeholder="Escanea o busca producto">
+          <button class="btn btn-primary">Buscar</button>
+        </form>
+
+        {% if resultados %}
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Producto</th>
+              <th class="text-end">Precio</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in resultados %}
+            <tr>
+              <td>{{ p.nombre }}</td>
+              <td class="text-end fw-bold">${{ p.precio_con_iva }}</td>
+              <td class="text-end">
+                <form method="post" action="{% url 'pos_add_item' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="producto_id" value="{{ p.id }}">
+                  <input type="hidden" name="cantidad" value="1">
+                  <button class="btn btn-success btn-sm">➕</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- CARRITO -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+        {% if not turno %}
+        <div class="alert alert-warning">
+            No hay turno abierto. <a href="{% url 'turno_home' %}">Abrir caja</a>
+        </div>
+        {% endif %}
+      <div class="card-body">
+        <h5 class="card-title">🛒 Carrito</h5>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th class="text-center">Cant</th>
+              <th class="text-end">Sub</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+            <tr>
+              <td>{{ it.producto.nombre }}</td>
+              <td class="text-center">{{ it.cantidad }}</td>
+              <td class="text-end">${{ it.subtotal }}</td>
+              <td class="text-end">
+                <form method="post" action="{% url 'pos_add_item' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="producto_id" value="{{ it.producto.id }}">
+                  <input type="hidden" name="cantidad" value="-1">
+                  <button class="btn btn-outline-danger btn-sm">−</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted">Carrito vacío</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <span class="fs-3 fw-bold">TOTAL</span>
+          <span class="fs-3 fw-bold text-success">${{ total }}</span>
+        </div>
+
+        <form method="post" action="{% url 'pos_checkout' %}" class="mt-3">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-6">
+              <select name="metodo_pago" class="form-select form-select-lg">
+                <option value="EFECTIVO">💵 Efectivo</option>
+                <option value="TARJETA">💳 Tarjeta</option>
+                <option value="TRANSFER">🏦 Transferencia</option>
+              </select>
+            </div>
+            <div class="col-6 d-grid">
+              <button class="btn btn-lg btn-primary">
+                Cobrar & Ticket
+              </button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+{% block extra_js %}
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const ticket = params.get("ticket");
+
+      // Siempre intenta enfocar el buscador
+      function focusBuscar() {
+        const el = document.getElementById("buscar");
+        if (el) {
+          el.value = "";      // limpia búsqueda
+          el.focus();         // enfoca
+          el.select?.();      // por si escribe algo, lo selecciona
+        }
+      }
+
+      if (ticket) {
+        // Abre ticket en nueva pestaña/ventana
+        window.open(ticket, "_blank");
+
+        // Limpia el query param para que no se reabra al recargar
+        params.delete("ticket");
+        const newUrl = window.location.pathname + (params.toString() ? ("?" + params.toString()) : "");
+        window.history.replaceState({}, "", newUrl);
+
+        // Enfoca inmediatamente (y una segunda vez por si el navegador tarda)
+        focusBuscar();
+        setTimeout(focusBuscar, 200);
+      } else {
+        // Caso normal: solo enfoca
+        focusBuscar();
+      }
+    })();
+  </script>
+{% endblock %}
+
+
+{% endblock %}

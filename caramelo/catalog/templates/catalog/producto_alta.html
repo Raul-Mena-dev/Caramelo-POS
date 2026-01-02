@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Alta de producto{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="mb-3">Alta de producto</h4>
+
+        <form method="post">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label">Nombre</label>
+              {{ form.nombre }}
+              {{ form.nombre.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">SKU</label>
+              {{ form.sku }}
+              {{ form.sku.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-6">
+              <label class="form-label">Codigo de barras (opcional)</label>
+              {{ form.barcode }}
+              {{ form.barcode.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Precio con IVA</label>
+              {{ form.precio_con_iva }}
+              {{ form.precio_con_iva.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">Costo</label>
+              {{ form.costo }}
+              {{ form.costo.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Stock inicial</label>
+              {{ form.stock_actual }}
+              {{ form.stock_actual.errors }}
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                {{ form.activo }}
+                <label class="form-check-label">Activo</label>
+              </div>
+              {{ form.activo.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-3">
+            <div class="col-md-6">
+              <label class="form-label">Grupo</label>
+              {{ form.grupo_nombre }}
+              {{ form.grupo_nombre.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Subgrupo</label>
+              {{ form.subgrupo_nombre }}
+              {{ form.subgrupo_nombre.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-3">
+            <div class="col-md-4">
+              <div class="form-check">
+                {{ form.generar_barcode }}
+                <label class="form-check-label">Generar codigo de barras</label>
+              </div>
+              {{ form.generar_barcode.errors }}
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                {{ form.generar_qr }}
+                <label class="form-check-label">Generar QR</label>
+              </div>
+              {{ form.generar_qr.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Cantidad de etiquetas</label>
+              {{ form.etiquetas_qty }}
+              {{ form.etiquetas_qty.errors }}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary">Guardar</button>
+            <a class="btn btn-outline-secondary" href="{% url 'catalog_inventario' %}">Inventario</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  {% if etiquetas_url %}
+    <script>
+      (function () {
+        window.open("{{ etiquetas_url }}", "_blank");
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Caja / Turno{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="mb-3">Turno de caja</h4>
+
+        {% if turno %}
+          <div class="alert alert-success">
+            Turno ABIERTO: <b>{{ turno.caja_nombre }}</b><br>
+            Apertura: {{ turno.apertura }}
+            <br>Fondo inicial: ${{ turno.fondo_inicial }}
+          </div>
+
+          <form method="post" action="{% url 'turno_cerrar' %}">
+            {% csrf_token %}
+            <label class="form-label">Efectivo contado al cierre</label>
+            <input class="form-control form-control-lg" name="efectivo_contado" inputmode="decimal" required>
+            <button class="btn btn-danger btn-lg w-100 mt-3">Cerrar turno</button>
+          </form>
+
+        {% else %}
+          <div class="alert alert-warning">No hay turno abierto.</div>
+
+          <form method="post" action="{% url 'turno_abrir' %}">
+            {% csrf_token %}
+            <label class="form-label">Caja</label>
+            <select class="form-select form-select-lg" name="caja_nombre">
+              <option value="CAJA1">CAJA1</option>
+              <option value="CAJA2">CAJA2</option>
+            </select>
+
+            <label class="form-label mt-2">Fondo inicial</label>
+            <input class="form-control form-control-lg" name="fondo_inicial" value="0.00" inputmode="decimal">
+
+            <button class="btn btn-success btn-lg w-100 mt-3">Abrir turno</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
