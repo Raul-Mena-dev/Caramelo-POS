@@ -16,6 +16,6 @@ class SubgrupoProductoAdmin(admin.ModelAdmin):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "precio_con_iva", "stock_actual", "barcode", "grupo", "subgrupo", "activo")
+    list_display = ("nombre", "precio_con_iva", "unidad_venta", "stock_actual", "stock_minimo", "barcode", "grupo", "subgrupo", "no_contabilizable", "activo")
     search_fields = ("nombre", "sku", "barcode", "grupo__nombre", "subgrupo__nombre")
-    list_filter = ("activo", "grupo", "subgrupo")
+    list_filter = ("activo", "unidad_venta", "no_contabilizable", "grupo", "subgrupo")

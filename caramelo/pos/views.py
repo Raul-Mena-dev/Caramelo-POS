@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -9,11 +9,39 @@ from django.urls import reverse
 from django.contrib import messages
 
 from catalog.models import Producto
-from sales.models import Venta, VentaItem, MovimientoInventario
+from sales.models import ClienteFiscal, Venta, VentaItem, MovimientoInventario, VentaSinStock
 from sales.models import CajaTurno
+
+MONEY = Decimal("0.01")
+RETENCION_PERSONA_MORAL = Decimal("0.0125")
 
 def _get_cart(session):
     return session.setdefault("cart", {})  # {producto_id: "cantidad"}
+
+def _decimal(value, default="0"):
+    try:
+        return Decimal(str(value or default))
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
+
+def _item_snapshot(producto, cantidad):
+    desglose = producto.desglose_unitario()
+    subtotal = (desglose["precio"] * cantidad).quantize(MONEY)
+    base_total = (desglose["base"] * cantidad).quantize(MONEY)
+    ieps_total = (desglose["ieps"] * cantidad).quantize(MONEY)
+    iva_total = (desglose["iva"] * cantidad).quantize(MONEY)
+    return {
+        "producto": producto,
+        "cantidad": cantidad,
+        "base_unitaria": desglose["base"],
+        "ieps_unitario": desglose["ieps"],
+        "iva_unitario": desglose["iva"],
+        "precio_unitario_con_iva": desglose["precio"],
+        "base_total": base_total,
+        "ieps_total": ieps_total,
+        "iva_total": iva_total,
+        "subtotal": subtotal,
+    }
 
 def _cart_total(cart):
     # total se recalcula al vuelo
@@ -23,10 +51,12 @@ def _cart_total(cart):
         p = Producto.objects.filter(id=int(pid), activo=True).first()
         if not p:
             continue
-        qty = Decimal(qty_str)
-        subtotal = (p.precio_con_iva * qty).quantize(Decimal("0.01"))
-        total += subtotal
-        items.append({"producto": p, "cantidad": qty, "subtotal": subtotal})
+        qty = _decimal(qty_str)
+        if qty <= 0:
+            continue
+        item = _item_snapshot(p, qty)
+        total += item["subtotal"]
+        items.append(item)
     return total.quantize(Decimal("0.01")), items
 
 @login_required
@@ -36,6 +66,8 @@ def pos_home(request):
 
     q = (request.GET.get("q", "") or "").strip()
     resultados = []
+    codigo_no_encontrado = ""
+    crear_producto_url = ""
 
     if q:
         # 1) INTENTO: match exacto por barcode (scanner)
@@ -47,7 +79,7 @@ def pos_home(request):
 
         if p:
             # Auto-agrega 1 al carrito
-            current = Decimal(cart.get(str(p.id), "0"))
+            current = _decimal(cart.get(str(p.id), "0"))
             cart[str(p.id)] = str(current + Decimal("1"))
 
             request.session.modified = True
@@ -58,13 +90,20 @@ def pos_home(request):
 
         # Si no hubo match exacto, entonces sí muestra búsqueda normal
         resultados = list(Producto.objects.filter(activo=True, nombre__icontains=q)[:20])
+        if not resultados:
+            codigo_no_encontrado = q
+            crear_producto_url = f"{reverse('catalog_producto_rapido')}?barcode={q}&next={reverse('pos_home')}"
 
     return render(request, "pos/home.html", {
         "items": items,
         "total": total,
         "q": q,
         "resultados": resultados,
+        "codigo_no_encontrado": codigo_no_encontrado,
+        "crear_producto_url": crear_producto_url,
         "turno": _get_turno_abierto(request.user),
+        "clientes_fiscales": ClienteFiscal.objects.filter(activo=True).order_by("razon_social"),
+        "ultima_venta": Venta.objects.filter(usuario=request.user).order_by("-fecha").first(),
     })
     
 @login_required
@@ -73,20 +112,32 @@ def pos_add_item(request):
         return HttpResponseBadRequest("POST required")
 
     pid = request.POST.get("producto_id")
-    qty = request.POST.get("cantidad", "1")
+    qty = _decimal(request.POST.get("cantidad", "1"), "1")
     if not pid:
         return HttpResponseBadRequest("producto_id requerido")
+    if qty == 0:
+        return redirect("pos_home")
 
     p = get_object_or_404(Producto, id=int(pid), activo=True)
     cart = _get_cart(request.session)
-    current = Decimal(cart.get(str(p.id), "0"))
-    new_qty = current + Decimal(qty)
+    current = _decimal(cart.get(str(p.id), "0"))
+    new_qty = current + qty
     if new_qty <= 0:
         cart.pop(str(p.id), None)
     else:
         cart[str(p.id)] = str(new_qty)
 
     request.session.modified = True
+    return redirect("pos_home")
+
+
+@login_required
+def pos_clear_cart(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+    request.session["cart"] = {}
+    request.session.modified = True
+    messages.info(request, "Carrito vacío.")
     return redirect("pos_home")
 
 @login_required
@@ -100,10 +151,23 @@ def pos_checkout(request):
         return HttpResponseBadRequest("No hay turno abierto. Abre caja primero.")
 
     metodo = request.POST.get("metodo_pago", "EFECTIVO")
+    cliente_id = request.POST.get("cliente_fiscal_id") or None
+    cliente = None
+    if cliente_id:
+        cliente = get_object_or_404(ClienteFiscal, id=int(cliente_id), activo=True)
+
     cart = _get_cart(request.session)
-    total, items = _cart_total(cart)
+    total_bruto, items = _cart_total(cart)
     if not items:
         return HttpResponseBadRequest("Carrito vacío")
+
+    subtotal_base = sum((it["base_total"] for it in items), Decimal("0.00")).quantize(MONEY)
+    total_ieps = sum((it["ieps_total"] for it in items), Decimal("0.00")).quantize(MONEY)
+    total_iva = sum((it["iva_total"] for it in items), Decimal("0.00")).quantize(MONEY)
+    retencion_isr = Decimal("0.00")
+    if cliente and cliente.tipo_persona == "MORAL":
+        retencion_isr = (subtotal_base * RETENCION_PERSONA_MORAL).quantize(MONEY)
+    total = (total_bruto - retencion_isr).quantize(MONEY)
 
     # Folio simple (secuencial): max + 1
     last = Venta.objects.order_by("-folio").first()
@@ -112,43 +176,71 @@ def pos_checkout(request):
     venta = Venta.objects.create(
         folio=folio,
         metodo_pago=metodo,
+        subtotal_base=subtotal_base,
+        total_ieps=total_ieps,
+        total_iva=total_iva,
+        retencion_isr=retencion_isr,
         total=total,
         usuario=request.user,
         turno=turno,
+        cliente_fiscal=cliente,
     )
 
     # Genera items y descuenta inventario
     for it in items:
         p = it["producto"]
         qty = it["cantidad"]
-        subtotal = it["subtotal"]
 
         VentaItem.objects.create(
             venta=venta,
             producto=p,
             cantidad=qty,
-            precio_unitario_con_iva=p.precio_con_iva,
-            subtotal=subtotal,
+            base_unitaria=it["base_unitaria"],
+            ieps_unitario=it["ieps_unitario"],
+            iva_unitario=it["iva_unitario"],
+            precio_unitario_con_iva=it["precio_unitario_con_iva"],
+            base_total=it["base_total"],
+            ieps_total=it["ieps_total"],
+            iva_total=it["iva_total"],
+            subtotal=it["subtotal"],
         )
 
-        # descuenta stock y registra movimiento
-        p.stock_actual = (p.stock_actual - qty)
+        disponible = p.stock_actual
+        cantidad_a_descontar = min(disponible, qty)
+        faltante = qty - cantidad_a_descontar
+
+        # descuenta stock sin bajar de cero y registra incidencia si faltó producto
+        p.stock_actual = max(disponible - qty, Decimal("0.000"))
         p.save(update_fields=["stock_actual"])
 
-        MovimientoInventario.objects.create(
-            producto=p,
-            tipo="VENTA",
-            cantidad=-qty,
-            referencia=f"V{venta.folio}",
-            usuario=request.user,
-        )
+        if cantidad_a_descontar > 0:
+            MovimientoInventario.objects.create(
+                producto=p,
+                tipo="VENTA",
+                cantidad=-cantidad_a_descontar,
+                referencia=f"V{venta.folio}",
+                usuario=request.user,
+            )
+        if faltante > 0:
+            VentaSinStock.objects.create(
+                venta=venta,
+                producto=p,
+                cantidad_solicitada=qty,
+                stock_disponible=disponible,
+                cantidad_faltante=faltante,
+                usuario=request.user,
+            )
 
     # limpia carrito
     request.session["cart"] = {}
     request.session.modified = True
 
     ticket_url = reverse("ticket_pdf", kwargs={"venta_id": venta.id})
-    messages.success(request, f"Venta V{venta.folio} generada.")
+    faltantes_count = venta.faltantes_stock.count()
+    if faltantes_count:
+        messages.warning(request, f"Venta V{venta.folio} generada con {faltantes_count} producto(s) sin stock suficiente.")
+    else:
+        messages.success(request, f"Venta V{venta.folio} generada.")
     # mandamos ticket_url como query param
     return redirect(f"{reverse('pos_home')}?ticket={ticket_url}")
 
@@ -161,7 +253,7 @@ def ticket_pdf(request, venta_id: int):
 
     width = 80 * mm
     # alto dinámico: header + items + footer (aprox)
-    height = (60 + (len(venta.items.all()) * 10) + 40) * mm
+    height = (70 + (len(venta.items.all()) * 14) + 55) * mm
 
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="ticket_V{venta.folio}.pdf"'
@@ -179,15 +271,25 @@ def ticket_pdf(request, venta_id: int):
     line("Caramelo", size=14, dy=8*mm)
     line(f"Ticket: V{venta.folio}", size=10)
     line(f"Fecha: {timezone.localtime(venta.fecha).strftime('%Y-%m-%d %H:%M')}", size=9)
+    if venta.cliente_fiscal:
+        line(f"Cliente: {venta.cliente_fiscal.razon_social[:35]}", size=8, dy=5*mm)
+        line(f"RFC: {venta.cliente_fiscal.rfc}", size=8, dy=5*mm)
     line("-"*48, size=9)
 
     # Items
     for it in venta.items.select_related("producto").all():
         nombre = it.producto.nombre
         line(nombre, size=9, dy=5*mm)
-        line(f"{it.cantidad} x ${it.precio_unitario_con_iva} = ${it.subtotal}", size=9, dy=6*mm)
+        unidad = "kg" if it.producto.unidad_venta == "KG" else "u"
+        line(f"{it.cantidad} {unidad} x ${it.precio_unitario_con_iva} = ${it.subtotal}", size=9, dy=5*mm)
+        line(f"Base ${it.base_total} IEPS ${it.ieps_total} IVA ${it.iva_total}", size=7, dy=5*mm)
 
     line("-"*48, size=9)
+    line(f"SUBTOTAL: ${venta.subtotal_base}", size=9, dy=5*mm)
+    line(f"IEPS: ${venta.total_ieps}", size=9, dy=5*mm)
+    line(f"IVA: ${venta.total_iva}", size=9, dy=5*mm)
+    if venta.retencion_isr:
+        line(f"RET ISR: -${venta.retencion_isr}", size=9, dy=5*mm)
     line(f"TOTAL: ${venta.total}", size=12, dy=8*mm)
     line(f"PAGO: {venta.metodo_pago}", size=10)
     line("Gracias por su compra", size=10, dy=8*mm)

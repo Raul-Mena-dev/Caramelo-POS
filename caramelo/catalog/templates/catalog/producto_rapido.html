@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Alta rápida{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h4 class="mb-0">Alta rápida de producto</h4>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ next_url }}">Volver</a>
+        </div>
+        <div class="text-muted mb-3">Si dejas vacío el precio de venta, se calcula con costo, piezas y margen.</div>
+
+        {% if barcode %}
+          <div class="alert alert-warning">Código escaneado: <b>{{ barcode }}</b></div>
+        {% endif %}
+
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Código de barras <span class="help-dot" title="Código leído por la pistola. Si llegaste desde caja, viene precargado.">?</span></label>
+              {{ form.barcode }}
+              {{ form.barcode.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nombre <span class="help-dot" title="Nombre corto y claro para identificar el producto al vender.">?</span></label>
+              {{ form.nombre }}
+              {{ form.nombre.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">Costo total compra <span class="help-dot" title="Lo que pagaste por todo el paquete, caja o bolsa.">?</span></label>
+              {{ form.costo_compra }}
+              {{ form.costo_compra.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Piezas compradas <span class="help-dot" title="Cuántas piezas trae la compra; también se usa como stock inicial si dejas ese campo vacío.">?</span></label>
+              {{ form.unidades_compra }}
+              {{ form.unidades_compra.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Margen % <span class="help-dot" title="Ganancia deseada sobre el costo unitario.">?</span></label>
+              {{ form.margen_porcentaje }}
+              {{ form.margen_porcentaje.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">Precio venta opcional <span class="help-dot" title="Precio final al público. Déjalo vacío para usar el precio sugerido.">?</span></label>
+              {{ form.precio_con_iva }}
+              {{ form.precio_con_iva.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Stock inicial <span class="help-dot" title="Cantidad disponible para vender. Si lo dejas vacío, usa piezas compradas.">?</span></label>
+              {{ form.stock_actual }}
+              {{ form.stock_actual.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Stock mínimo <span class="help-dot" title="Cantidad mínima antes de que aparezca como stock bajo.">?</span></label>
+              {{ form.stock_minimo }}
+              {{ form.stock_minimo.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-6">
+              <label class="form-label">Grupo <span class="help-dot" title="Categoría para organizar productos. Puedes escribir una nueva.">?</span></label>
+              {{ form.grupo_nombre }}
+              {{ form.grupo_nombre.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Unidad <span class="help-dot" title="Pieza para venta normal; kilogramo para productos a granel.">?</span></label>
+              {{ form.unidad_venta }}
+              {{ form.unidad_venta.errors }}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary btn-lg">Guardar y volver a caja</button>
+            <a class="btn btn-outline-secondary btn-lg" href="{{ next_url }}">Cancelar</a>
+          </div>
+        </form>
+
+        <div class="alert alert-info mt-3 mb-0" id="precio-ayuda">
+          Costo unitario: $0.00 | Precio sugerido: $0.00
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const barcode = document.querySelector("[name='barcode']");
+    const nombre = document.querySelector("[name='nombre']");
+    const costo = document.querySelector("[name='costo_compra']");
+    const piezas = document.querySelector("[name='unidades_compra']");
+    const margen = document.querySelector("[name='margen_porcentaje']");
+    const ayuda = document.getElementById("precio-ayuda");
+    const halfUp = (value) => Math.ceil(value / 0.5) * 0.5;
+    function recalc() {
+      if (!ayuda) return;
+      const c = parseFloat(costo?.value || "0");
+      const p = parseFloat(piezas?.value || "0");
+      const m = parseFloat(margen?.value || "0");
+      const unit = p > 0 ? c / p : 0;
+      const sugerido = halfUp(unit * (1 + (m / 100)) * 1.08 * 1.16);
+      ayuda.textContent = `Costo unitario: $${unit.toFixed(2)} | Precio sugerido: $${sugerido.toFixed(2)}`;
+    }
+    [costo, piezas, margen].forEach((el) => el?.addEventListener("input", recalc));
+    recalc();
+    if (barcode && !barcode.value) barcode.focus();
+    else if (nombre) nombre.focus();
+  })();
+</script>
+{% endblock %}

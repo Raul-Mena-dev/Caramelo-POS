@@ -10,9 +10,41 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
 
+  <style>
+    :root {
+      --caramelo: #c43c6b;
+      --caramelo-dark: #7b2445;
+      --menta: #18a999;
+      --paper: #fff8fb;
+    }
+    body { background: var(--paper); }
+    .navbar { background: linear-gradient(90deg, var(--caramelo-dark), var(--caramelo)) !important; }
+    .btn-primary { background-color: var(--caramelo); border-color: var(--caramelo); }
+    .btn-primary:hover, .btn-primary:focus { background-color: var(--caramelo-dark); border-color: var(--caramelo-dark); }
+    .btn-success { background-color: var(--menta); border-color: var(--menta); }
+    .card { border: 0; border-radius: 8px; }
+    .table > :not(caption) > * > * { vertical-align: middle; }
+    .pos-shell .card { min-height: 100%; }
+    .help-dot {
+      align-items: center;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 50%;
+      color: #3949ab;
+      cursor: help;
+      display: inline-flex;
+      font-size: 0.72rem;
+      font-weight: 700;
+      height: 18px;
+      justify-content: center;
+      line-height: 1;
+      margin-left: 4px;
+      width: 18px;
+    }
+  </style>
   {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-light">
+<body>
 
 <nav class="navbar navbar-dark bg-dark px-3">
   <a class="navbar-brand mb-0 h1 d-flex align-items-center gap-2" href="{% url 'pos_home' %}">
@@ -53,9 +85,6 @@
 
   {% block content %}{% endblock %}
 </div>
-
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 {% block extra_js %}{% endblock %}
 </body>

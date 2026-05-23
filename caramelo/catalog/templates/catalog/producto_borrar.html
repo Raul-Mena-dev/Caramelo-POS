@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Borrar producto{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="mb-3">Borrar producto</h4>
+        <div class="alert alert-warning">
+          Vas a borrar <b>{{ producto.nombre }}</b>.
+          Si ya tiene ventas o movimientos, no se eliminará el historial: el producto se desactivará.
+        </div>
+
+        <dl class="row">
+          <dt class="col-sm-4">Código</dt>
+          <dd class="col-sm-8">{{ producto.barcode|default:"Sin código" }}</dd>
+          <dt class="col-sm-4">Stock</dt>
+          <dd class="col-sm-8">{{ producto.stock_actual }}</dd>
+          <dt class="col-sm-4">Precio</dt>
+          <dd class="col-sm-8">${{ producto.precio_con_iva }}</dd>
+        </dl>
+
+        <form method="post" class="d-flex gap-2">
+          {% csrf_token %}
+          <button class="btn btn-danger">Confirmar borrado</button>
+          <a class="btn btn-outline-secondary" href="{% url 'catalog_inventario' %}">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

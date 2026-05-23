@@ -6,10 +6,14 @@
   <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
           <h4 class="mb-0">Editar producto</h4>
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'catalog_inventario' %}">Inventario</a>
+          <div class="d-flex gap-2">
+            <a class="btn btn-outline-danger btn-sm" href="{% url 'catalog_producto_borrar' producto.id %}">Borrar</a>
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'catalog_inventario' %}">Inventario</a>
+          </div>
         </div>
+        <div class="text-muted mb-3">Actualiza compra, piezas y precio sin tocar opciones fiscales avanzadas salvo que haga falta.</div>
 
         <form method="post">
           {% csrf_token %}
@@ -19,91 +23,162 @@
           {% endif %}
 
           <div class="row g-2">
-            <div class="col-md-8">
-              <label class="form-label">Nombre</label>
+            <div class="col-md-7">
+              <label class="form-label">Nombre <span class="help-dot" title="Nombre comercial que verá el cajero al vender.">?</span></label>
               {{ form.nombre }}
               {{ form.nombre.errors }}
             </div>
-            <div class="col-md-4">
-              <label class="form-label">SKU</label>
-              {{ form.sku }}
-              {{ form.sku.errors }}
-            </div>
-          </div>
-
-          <div class="row g-2 mt-1">
-            <div class="col-md-6">
-              <label class="form-label">Codigo de barras (opcional)</label>
+            <div class="col-md-5">
+              <label class="form-label">Código de barras <span class="help-dot" title="Código que lee la pistola. Cambiarlo afecta el escaneo en caja.">?</span></label>
               {{ form.barcode }}
               {{ form.barcode.errors }}
             </div>
-            <div class="col-md-6">
-              <label class="form-label">Precio con IVA</label>
-              {{ form.precio_con_iva }}
-              {{ form.precio_con_iva.errors }}
-            </div>
           </div>
 
-          <div class="row g-2 mt-1">
-            <div class="col-md-4">
-              <label class="form-label">Costo</label>
-              {{ form.costo }}
-              {{ form.costo.errors }}
+          <div class="row g-2 mt-3">
+            <div class="col-md-3">
+              <label class="form-label">Costo total compra <span class="help-dot" title="Importe total que pagaste por la caja, bolsa o paquete completo.">?</span></label>
+              {{ form.costo_compra }}
+              {{ form.costo_compra.errors }}
             </div>
-            <div class="col-md-4">
-              <label class="form-label">Stock</label>
+            <div class="col-md-3">
+              <label class="form-label">Piezas compradas <span class="help-dot" title="Cantidad de piezas de esa compra; sirve para calcular costo unitario.">?</span></label>
+              {{ form.unidades_compra }}
+              {{ form.unidades_compra.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Stock actual <span class="help-dot" title="Existencia disponible para vender. Para ajustes con historial usa la pantalla Ajuste.">?</span></label>
               {{ form.stock_actual }}
               {{ form.stock_actual.errors }}
             </div>
-            <div class="col-md-4 d-flex align-items-end">
-              <div class="form-check">
-                {{ form.activo }}
-                <label class="form-check-label">Activo</label>
-              </div>
-              {{ form.activo.errors }}
+            <div class="col-md-3">
+              <label class="form-label">Stock mínimo <span class="help-dot" title="Nivel a partir del cual se marca como stock bajo.">?</span></label>
+              {{ form.stock_minimo }}
+              {{ form.stock_minimo.errors }}
             </div>
           </div>
 
           <div class="row g-2 mt-3">
-            <div class="col-md-6">
-              <label class="form-label">Grupo</label>
+            <div class="col-md-3">
+              <label class="form-label">Margen % <span class="help-dot" title="Ganancia sobre el costo unitario antes de impuestos.">?</span></label>
+              {{ form.margen_porcentaje }}
+              {{ form.margen_porcentaje.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Precio venta opcional <span class="help-dot" title="Precio final al público. Si lo capturas, se respeta como precio fijo.">?</span></label>
+              {{ form.precio_con_iva }}
+              {{ form.precio_con_iva.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Unidad venta <span class="help-dot" title="Pieza para productos unitarios; kilogramo para productos a granel.">?</span></label>
+              {{ form.unidad_venta }}
+              {{ form.unidad_venta.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Grupo <span class="help-dot" title="Categoría para organizar inventario.">?</span></label>
               {{ form.grupo_nombre }}
               {{ form.grupo_nombre.errors }}
             </div>
-            <div class="col-md-6">
-              <label class="form-label">Subgrupo</label>
-              {{ form.subgrupo_nombre }}
-              {{ form.subgrupo_nombre.errors }}
-            </div>
           </div>
 
-          <div class="row g-2 mt-3">
-            <div class="col-md-4">
-              <div class="form-check">
-                {{ form.generar_barcode }}
-                <label class="form-check-label">Generar codigo de barras</label>
+          <details class="mt-4">
+            <summary class="fw-bold">Opciones avanzadas fiscales y etiquetas</summary>
+
+            <div class="row g-2 mt-3">
+              <div class="col-md-3">
+                <label class="form-label">SKU interno <span class="help-dot" title="Clave interna opcional, independiente del código de barras.">?</span></label>
+                {{ form.sku }}
+                {{ form.sku.errors }}
               </div>
-              {{ form.generar_barcode.errors }}
-            </div>
-            <div class="col-md-4">
-              <div class="form-check">
-                {{ form.generar_qr }}
-                <label class="form-check-label">Generar QR</label>
+              <div class="col-md-3">
+                <label class="form-label">IEPS % <span class="help-dot" title="Impuesto especial. Para dulces y alimentos no básicos de alta densidad calórica suele usarse 8%; puedes ajustarlo por producto.">?</span></label>
+                {{ form.ieps_porcentaje }}
+                {{ form.ieps_porcentaje.errors }}
               </div>
-              {{ form.generar_qr.errors }}
+              <div class="col-md-3">
+                <label class="form-label">IVA % <span class="help-dot" title="IVA aplicable al desglose fiscal. El precio al público ya incluye impuestos.">?</span></label>
+                {{ form.iva_porcentaje }}
+                {{ form.iva_porcentaje.errors }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Costo unitario <span class="help-dot" title="Costo por pieza calculado desde costo total entre piezas compradas.">?</span></label>
+                {{ form.costo }}
+                {{ form.costo.errors }}
+              </div>
             </div>
-            <div class="col-md-4">
-              <label class="form-label">Cantidad de etiquetas</label>
-              {{ form.etiquetas_qty }}
-              {{ form.etiquetas_qty.errors }}
+
+            <div class="row g-2 mt-1">
+              <div class="col-md-3">
+                <label class="form-label">Precio sin impuestos <span class="help-dot" title="Base antes de IEPS e IVA para desglose fiscal.">?</span></label>
+                {{ form.precio_sin_impuestos }}
+                {{ form.precio_sin_impuestos.errors }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Precio calculado <span class="help-dot" title="Precio sugerido antes de redondeo comercial.">?</span></label>
+                {{ form.precio_calculado }}
+                {{ form.precio_calculado.errors }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Precio mandatorio <span class="help-dot" title="Precio fijo que se respeta sobre el cálculo automático.">?</span></label>
+                {{ form.precio_mandatorio }}
+                {{ form.precio_mandatorio.errors }}
+              </div>
+              <div class="col-md-3">
+                <div class="form-check">
+                  {{ form.activo }}
+                  <label class="form-check-label">Activo</label>
+                </div>
+                <div class="form-check">
+                  {{ form.usar_precio_mandatorio }}
+                  <label class="form-check-label">Usar mandatorio</label>
+                </div>
+                <div class="form-check">
+                  {{ form.no_contabilizable }}
+                  <label class="form-check-label">No contabilizable</label>
+                </div>
+              </div>
             </div>
-          </div>
+
+            <div class="row g-2 mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Subgrupo <span class="help-dot" title="Subcategoría opcional dentro del grupo.">?</span></label>
+                {{ form.subgrupo_nombre }}
+                {{ form.subgrupo_nombre.errors }}
+              </div>
+            </div>
+
+            <div class="row g-2 mt-3">
+              <div class="col-md-4">
+                <div class="form-check">
+                  {{ form.generar_barcode }}
+                  <label class="form-check-label">Generar codigo de barras</label>
+                </div>
+                {{ form.generar_barcode.errors }}
+              </div>
+              <div class="col-md-4">
+                <div class="form-check">
+                  {{ form.generar_qr }}
+                  <label class="form-check-label">Generar QR</label>
+                </div>
+                {{ form.generar_qr.errors }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Cantidad de etiquetas <span class="help-dot" title="Número de etiquetas PDF a generar.">?</span></label>
+                {{ form.etiquetas_qty }}
+                {{ form.etiquetas_qty.errors }}
+              </div>
+            </div>
+          </details>
 
           <div class="d-flex gap-2 mt-4">
             <button class="btn btn-primary">Guardar cambios</button>
             <a class="btn btn-outline-secondary" href="{% url 'catalog_inventario' %}">Volver</a>
           </div>
         </form>
+
+        <div class="alert alert-info mt-3 mb-0" id="precio-ayuda">
+          Costo unitario: $0.00 | Precio sugerido: $0.00
+        </div>
       </div>
     </div>
   </div>
@@ -118,4 +193,29 @@
       })();
     </script>
   {% endif %}
+  <script>
+    (function () {
+      const costo = document.querySelector("[name='costo_compra']");
+      const piezas = document.querySelector("[name='unidades_compra']");
+      const margen = document.querySelector("[name='margen_porcentaje']");
+      const iva = document.querySelector("[name='iva_porcentaje']");
+      const ieps = document.querySelector("[name='ieps_porcentaje']");
+      const ayuda = document.getElementById("precio-ayuda");
+      const halfUp = (value) => Math.ceil(value / 0.5) * 0.5;
+      function recalc() {
+        if (!ayuda) return;
+        const c = parseFloat(costo?.value || "0");
+        const p = parseFloat(piezas?.value || "0");
+        const m = parseFloat(margen?.value || "0");
+        const ivaRate = parseFloat(iva?.value || "16") / 100;
+        const iepsRate = parseFloat(ieps?.value || "8") / 100;
+        const unit = p > 0 ? c / p : 0;
+        const base = unit * (1 + (m / 100));
+        const sugerido = halfUp((base + (base * iepsRate)) * (1 + ivaRate));
+        ayuda.textContent = `Costo unitario: $${unit.toFixed(2)} | Precio sugerido: $${sugerido.toFixed(2)}`;
+      }
+      [costo, piezas, margen, iva, ieps].forEach((el) => el?.addEventListener("input", recalc));
+      recalc();
+    })();
+  </script>
 {% endblock %}

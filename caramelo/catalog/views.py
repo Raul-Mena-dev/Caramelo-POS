@@ -2,7 +2,9 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Prefetch, Q
+from django.db import transaction
+from django.db.models import ProtectedError
+from django.db.models import F, Prefetch, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -17,7 +19,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-from .forms import ProductoAltaForm
+from sales.models import MovimientoInventario
+
+from .forms import AjusteInventarioForm, EntradaCompraForm, ProductoAltaForm, ProductoRapidoForm
 from .models import GrupoProducto, SubgrupoProducto, Producto
 
 
@@ -148,8 +152,30 @@ def producto_editar(request, producto_id):
 
 
 @require_admin
+@transaction.atomic
+def producto_borrar(request, producto_id):
+    producto = get_object_or_404(Producto, id=producto_id)
+    if request.method == "POST":
+        nombre = producto.nombre
+        try:
+            producto.delete()
+            messages.success(request, f"Producto eliminado: {nombre}.")
+        except ProtectedError:
+            producto.activo = False
+            producto.save(update_fields=["activo"])
+            messages.warning(
+                request,
+                f"{nombre} ya tiene historial de ventas o inventario; se desactivó para conservar registros.",
+            )
+        return redirect("catalog_inventario")
+
+    return render(request, "catalog/producto_borrar.html", {"producto": producto})
+
+
+@require_admin
 def inventario(request):
     q = (request.GET.get("q", "") or "").strip()
+    filtro = (request.GET.get("filtro", "") or "").strip()
     productos_qs = Producto.objects.select_related("grupo", "subgrupo").order_by("nombre")
     if q:
         productos_qs = productos_qs.filter(
@@ -159,6 +185,14 @@ def inventario(request):
             | Q(grupo__nombre__icontains=q)
             | Q(subgrupo__nombre__icontains=q)
         )
+    if filtro == "sin_codigo":
+        productos_qs = productos_qs.filter(Q(barcode__isnull=True) | Q(barcode=""))
+    elif filtro == "sin_stock":
+        productos_qs = productos_qs.filter(stock_actual__lte=0)
+    elif filtro == "stock_bajo":
+        productos_qs = productos_qs.filter(stock_minimo__gt=0, stock_actual__lte=F("stock_minimo"))
+    elif filtro == "no_contable":
+        productos_qs = productos_qs.filter(no_contabilizable=True)
 
     grupos_data = []
     grupos_map = {}
@@ -207,8 +241,83 @@ def inventario(request):
             "grupos": grupos_data,
             "productos_sin_grupo": productos_sin_grupo,
             "q": q,
+            "filtro": filtro,
         },
     )
+
+
+@require_admin
+def producto_rapido(request):
+    barcode = (request.GET.get("barcode") or request.POST.get("barcode") or "").strip()
+    next_url = request.GET.get("next") or request.POST.get("next") or reverse("pos_home")
+    if request.method == "POST":
+        form = ProductoRapidoForm(request.POST, barcode=barcode)
+        if form.is_valid():
+            producto = form.save()
+            messages.success(request, f"Producto rapido creado: {producto.nombre}.")
+            return redirect(next_url)
+    else:
+        form = ProductoRapidoForm(barcode=barcode)
+    return render(request, "catalog/producto_rapido.html", {"form": form, "barcode": barcode, "next_url": next_url})
+
+
+@require_admin
+@transaction.atomic
+def ajuste_inventario(request):
+    if request.method == "POST":
+        form = AjusteInventarioForm(request.POST)
+        if form.is_valid():
+            producto = form.cleaned_data["producto"]
+            cantidad = form.cleaned_data["cantidad"]
+            motivo = (form.cleaned_data.get("motivo") or "").strip() or "AJUSTE"
+            producto.stock_actual = producto.stock_actual + cantidad
+            producto.save(update_fields=["stock_actual"])
+            MovimientoInventario.objects.create(
+                producto=producto,
+                tipo="AJUSTE",
+                cantidad=cantidad,
+                referencia=motivo[:60],
+                usuario=request.user,
+            )
+            messages.success(request, f"Stock ajustado para {producto.nombre}.")
+            return redirect("catalog_inventario")
+    else:
+        form = AjusteInventarioForm()
+    return render(request, "catalog/ajuste_inventario.html", {"form": form})
+
+
+@require_admin
+@transaction.atomic
+def entrada_compra(request):
+    if request.method == "POST":
+        form = EntradaCompraForm(request.POST)
+        if form.is_valid():
+            producto = form.cleaned_data["producto"]
+            producto.costo_compra = form.cleaned_data["costo_compra"]
+            producto.unidades_compra = form.cleaned_data["unidades_compra"]
+            producto.ieps_porcentaje = form.cleaned_data["ieps_porcentaje"]
+            producto.iva_porcentaje = form.cleaned_data["iva_porcentaje"]
+            producto.margen_porcentaje = form.cleaned_data["margen_porcentaje"]
+            producto.precio_mandatorio = form.cleaned_data.get("precio_mandatorio") or 0
+            producto.usar_precio_mandatorio = form.cleaned_data["usar_precio_mandatorio"]
+            producto.stock_actual = producto.stock_actual + form.cleaned_data["cantidad"]
+            producto.calcular_precio()
+            producto.save()
+
+            referencia = (form.cleaned_data.get("referencia") or "").strip() or f"COMPRA-{timezone.localtime().strftime('%Y%m%d%H%M%S')}"
+            MovimientoInventario.objects.create(
+                producto=producto,
+                tipo="ENTRADA",
+                cantidad=form.cleaned_data["cantidad"],
+                referencia=referencia,
+                usuario=request.user,
+            )
+            messages.success(request, f"Compra registrada y stock actualizado para {producto.nombre}.")
+            return redirect("catalog_inventario")
+    else:
+        form = EntradaCompraForm()
+
+    return render(request, "catalog/entrada_compra.html", {"form": form})
 
 
 @require_admin

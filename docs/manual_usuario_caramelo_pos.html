@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Manual de Usuario - Caramelo POS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      color: #222;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.5;
+      margin: 0;
+      background: #fff8fb;
+    }
+    .page {
+      background: #fff;
+      margin: 24px auto;
+      max-width: 920px;
+      padding: 42px 52px;
+      box-shadow: 0 12px 34px rgba(80, 20, 45, 0.12);
+    }
+    h1, h2, h3 {
+      color: #7b2445;
+      line-height: 1.2;
+    }
+    h1 {
+      border-bottom: 4px solid #c43c6b;
+      font-size: 34px;
+      margin-bottom: 8px;
+      padding-bottom: 12px;
+    }
+    h2 {
+      border-bottom: 1px solid #ead1dc;
+      font-size: 23px;
+      margin-top: 34px;
+      padding-bottom: 6px;
+    }
+    h3 {
+      font-size: 18px;
+      margin-top: 22px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 15px;
+      margin-bottom: 28px;
+    }
+    .box {
+      background: #fff3f7;
+      border-left: 5px solid #c43c6b;
+      margin: 16px 0;
+      padding: 12px 16px;
+    }
+    .ok {
+      background: #effaf6;
+      border-left-color: #18a999;
+    }
+    .warn {
+      background: #fff8df;
+      border-left-color: #d49a00;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #eadde3;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f8e8ef;
+      color: #592038;
+    }
+    code {
+      background: #f3edf0;
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+    ol, ul {
+      padding-left: 24px;
+    }
+    .footer {
+      color: #777;
+      font-size: 12px;
+      margin-top: 42px;
+      text-align: center;
+    }
+    @media print {
+      body {
+        background: #fff;
+      }
+      .page {
+        box-shadow: none;
+        margin: 0;
+        max-width: none;
+        padding: 20mm;
+      }
+      h2 {
+        page-break-after: avoid;
+      }
+      table, .box {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+<main class="page">
+  <h1>Manual de Usuario - Caramelo POS</h1>
+  <p class="subtitle">Guía de operación para dulcería: caja, productos, inventario, compras, reportes y uso con pistola de códigos.</p>
+
+  <div class="box ok">
+    <strong>Objetivo del sistema:</strong> ayudar a vender de forma rápida en mostrador, controlar existencias, registrar compras y obtener cortes de caja e inventario para una dulcería de menudeo.
+  </div>
+
+  <h2>1. Acceso al Sistema</h2>
+  <ol>
+    <li>Abra la página del sistema en el navegador.</li>
+    <li>Ingrese usuario y contraseña.</li>
+    <li>Después de iniciar sesión, entre a <strong>Caja</strong> para vender.</li>
+  </ol>
+  <p>Si no recuerda la contraseña, el administrador debe cambiarla desde la herramienta administrativa del sistema.</p>
+
+  <h2>2. Menú Principal</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Opción</th>
+        <th>Uso</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Caja</strong></td>
+        <td>Realizar ventas, escanear productos, cobrar e imprimir ticket.</td>
+      </tr>
+      <tr>
+        <td><strong>Turno</strong></td>
+        <td>Abrir y cerrar caja con fondo inicial y efectivo contado.</td>
+      </tr>
+      <tr>
+        <td><strong>Cortes</strong></td>
+        <td>Consultar ventas por fecha, imprimir PDF y descargar CSV.</td>
+      </tr>
+      <tr>
+        <td><strong>Inventario</strong></td>
+        <td>Administrar productos, compras, ajustes, stock bajo y códigos de barras.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Apertura de Turno</h2>
+  <p>Antes de vender es recomendable abrir turno.</p>
+  <ol>
+    <li>Entre a <strong>Turno</strong>.</li>
+    <li>Capture el nombre de la caja, por ejemplo <code>CAJA1</code>.</li>
+    <li>Capture el fondo inicial en efectivo.</li>
+    <li>Presione <strong>Abrir turno</strong>.</li>
+  </ol>
+  <div class="box warn">
+    Si no hay turno abierto, el sistema no permitirá cobrar ventas.
+  </div>
+
+  <h2>4. Venta en Caja</h2>
+  <h3>Venta con pistola de códigos</h3>
+  <ol>
+    <li>Entre a <strong>Caja</strong>.</li>
+    <li>Coloque el cursor en el campo <strong>Escanea o busca producto</strong>.</li>
+    <li>Escanee el código de barras con la pistola.</li>
+    <li>Si el producto existe, se agrega automáticamente al carrito.</li>
+    <li>Seleccione el método de pago: efectivo, tarjeta o transferencia.</li>
+    <li>Presione <strong>Cobrar &amp; Ticket</strong>.</li>
+  </ol>
+
+  <h3>Producto no encontrado</h3>
+  <p>Si el código escaneado no existe, la caja muestra una alerta con la opción <strong>Alta rápida</strong>.</p>
+  <ol>
+    <li>Presione <strong>Alta rápida</strong>.</li>
+    <li>El código escaneado aparecerá precargado.</li>
+    <li>Capture nombre, costo total, piezas compradas, margen o precio de venta.</li>
+    <li>Guarde el producto y regrese a caja.</li>
+  </ol>
+
+  <h3>Productos a granel o por kilo</h3>
+  <p>Cuando el producto está configurado como kilogramo, puede vender cantidades decimales, por ejemplo:</p>
+  <ul>
+    <li><code>0.250</code> para 250 gramos.</li>
+    <li><code>0.500</code> para medio kilo.</li>
+    <li><code>1.000</code> para un kilo.</li>
+  </ul>
+
+  <h3>Botones útiles de caja</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Botón</th>
+        <th>Función</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Vaciar</strong></td>
+        <td>Limpia todos los productos del carrito actual.</td>
+      </tr>
+      <tr>
+        <td><strong>Último ticket</strong></td>
+        <td>Abre el ticket de la última venta del usuario.</td>
+      </tr>
+      <tr>
+        <td><strong>Producto rápido</strong></td>
+        <td>Permite dar de alta un producto sin salir del flujo de caja.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>5. Alta de Productos</h2>
+  <p>La captura está diseñada para funcionar con la menor cantidad de datos posible.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Campo</th>
+        <th>Qué significa</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Nombre</strong></td>
+        <td>Nombre comercial del producto, visible para el cajero.</td>
+      </tr>
+      <tr>
+        <td><strong>Código de barras</strong></td>
+        <td>Código que lee la pistola. Si no existe, puede generarse uno interno.</td>
+      </tr>
+      <tr>
+        <td><strong>Costo total compra</strong></td>
+        <td>Lo que pagó por toda la caja, bolsa, paquete o compra del producto.</td>
+      </tr>
+      <tr>
+        <td><strong>Piezas compradas</strong></td>
+        <td>Cantidad de piezas que recibió en esa compra. Sirve para calcular costo unitario.</td>
+      </tr>
+      <tr>
+        <td><strong>Stock inicial</strong></td>
+        <td>Cantidad disponible para vender. Si se deja vacío, se usa la cantidad de piezas compradas.</td>
+      </tr>
+      <tr>
+        <td><strong>Stock mínimo</strong></td>
+        <td>Nivel de alerta para saber cuándo se debe resurtir.</td>
+      </tr>
+      <tr>
+        <td><strong>Margen %</strong></td>
+        <td>Porcentaje de ganancia deseada sobre el costo unitario.</td>
+      </tr>
+      <tr>
+        <td><strong>Precio venta opcional</strong></td>
+        <td>Precio final al público. Si se captura, el sistema lo respeta; si se deja vacío, calcula un precio sugerido.</td>
+      </tr>
+      <tr>
+        <td><strong>Unidad venta</strong></td>
+        <td>Pieza para venta normal o kilogramo para venta a granel.</td>
+      </tr>
+      <tr>
+        <td><strong>Grupo</strong></td>
+        <td>Categoría del producto, por ejemplo gomitas, chocolates, bebidas o botanas.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box ok">
+    El sistema muestra una ayuda de <strong>Costo unitario</strong> y <strong>Precio sugerido</strong> mientras captura el producto.
+  </div>
+
+  <h2>6. Cálculo de Precio</h2>
+  <p>El sistema está preparado para venta al público general, que es el caso más común en la dulcería.</p>
+  <ul>
+    <li>IVA predeterminado: 16%.</li>
+    <li>IEPS predeterminado: 8%, editable por producto.</li>
+    <li>Margen predeterminado: 35%.</li>
+    <li>El precio sugerido se redondea hacia arriba al múltiplo de $0.50.</li>
+  </ul>
+  <p>Si se captura un precio de venta manual, el sistema lo usa como precio fijo.</p>
+
+  <h2>7. Inventario</h2>
+  <p>Desde <strong>Inventario</strong> puede consultar y administrar productos.</p>
+  <h3>Filtros disponibles</h3>
+  <ul>
+    <li><strong>Stock bajo:</strong> productos que llegaron al mínimo definido.</li>
+    <li><strong>Sin stock:</strong> productos con existencia en cero o menor.</li>
+    <li><strong>Sin código:</strong> productos pendientes de código de barras.</li>
+    <li><strong>No contables:</strong> productos que se venden, pero no aparecen en reportes contables.</li>
+  </ul>
+
+  <h3>Ajuste de inventario</h3>
+  <p>Use <strong>Ajuste</strong> cuando necesite corregir existencia por conteo físico, merma, caducidad o error de captura.</p>
+  <ul>
+    <li>Use cantidad positiva para sumar stock.</li>
+    <li>Use cantidad negativa para restar stock.</li>
+    <li>Capture un motivo claro, por ejemplo <code>MERMA</code>, <code>CADUCIDAD</code> o <code>CONTEO</code>.</li>
+  </ul>
+
+  <h3>Entrada de compra</h3>
+  <p>Use <strong>Entrada de compra</strong> para registrar nueva mercancía de un producto existente. Esta opción suma stock, actualiza costos y recalcula precio.</p>
+
+  <h3>Ventas sin stock suficiente</h3>
+  <p>El sistema permite vender aunque no haya existencia suficiente para no detener la operación de caja.</p>
+  <ul>
+    <li>El inventario nunca baja de 0.</li>
+    <li>Si se vende más de lo disponible, el faltante se registra automáticamente.</li>
+    <li>El reporte está en <strong>Cortes → Ventas sin stock</strong>.</li>
+    <li>Use ese reporte para resurtir o corregir inventario.</li>
+  </ul>
+
+  <h2>8. Borrar Productos</h2>
+  <p>En inventario y edición existe la opción <strong>Borrar</strong>.</p>
+  <ul>
+    <li>Si el producto no tiene historial, se elimina.</li>
+    <li>Si ya tiene ventas o movimientos, se desactiva para conservar historial.</li>
+  </ul>
+  <div class="box warn">
+    Por control fiscal y operativo, no se borra historial de productos ya vendidos. En ese caso el producto queda inactivo y ya no aparece para vender.
+  </div>
+
+  <h2>9. Clientes Fiscales</h2>
+  <p>La mayoría de ventas pueden hacerse a <strong>Público general</strong>.</p>
+  <p>Si un cliente requiere datos fiscales, se puede seleccionar en caja. Para persona moral, el sistema aplica la retención ISR configurada.</p>
+  <div class="box">
+    Recomendación: usar clientes fiscales solo cuando el cliente lo solicite. Para ventas normales de dulcería, mantener <strong>Público general</strong>.
+  </div>
+
+  <h2>10. Corte de Caja y Reportes</h2>
+  <h3>Cierre de turno</h3>
+  <ol>
+    <li>Entre a <strong>Turno</strong>.</li>
+    <li>Capture efectivo contado.</li>
+    <li>Presione <strong>Cerrar turno</strong>.</li>
+    <li>Revise total vendido, efectivo esperado y diferencia.</li>
+  </ol>
+
+  <h3>Corte por rango</h3>
+  <ol>
+    <li>Entre a <strong>Cortes</strong>.</li>
+    <li>Seleccione fecha de inicio y fecha final.</li>
+    <li>Presione <strong>Aplicar</strong>.</li>
+    <li>Puede imprimir PDF o descargar CSV.</li>
+  </ol>
+
+  <h2>11. Recomendaciones Operativas</h2>
+  <ul>
+    <li>Abrir turno antes de empezar a vender.</li>
+    <li>Usar la pistola para evitar errores de captura.</li>
+    <li>Dar de alta productos con costo total y piezas compradas.</li>
+    <li>Revisar <strong>Stock bajo</strong> al iniciar o terminar el día.</li>
+    <li>Usar ajustes con motivo cuando haya merma o diferencias de conteo.</li>
+    <li>Cerrar turno al final del día o cambio de cajero.</li>
+  </ul>
+
+  <h2>12. Problemas Frecuentes</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Situación</th>
+        <th>Qué hacer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>El código escaneado no aparece.</td>
+        <td>Use la opción <strong>Alta rápida</strong> para crear el producto con ese código.</td>
+      </tr>
+      <tr>
+        <td>No deja cobrar.</td>
+        <td>Verifique que haya turno abierto y que el carrito tenga productos.</td>
+      </tr>
+      <tr>
+        <td>Se vendió sin stock suficiente.</td>
+        <td>La venta sí se registra, el inventario queda en 0 y el faltante aparece en <strong>Ventas sin stock</strong>.</td>
+      </tr>
+      <tr>
+        <td>El precio sugerido no es el deseado.</td>
+        <td>Capture manualmente <strong>Precio venta opcional</strong> para fijarlo.</td>
+      </tr>
+      <tr>
+        <td>Un producto ya no debe venderse.</td>
+        <td>Use <strong>Borrar</strong>; si tiene historial, quedará desactivado.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Manual de Usuario - Caramelo POS. Documento preparado para operación de dulcería de menudeo.
+  </div>
+</main>
+</body>
+</html>

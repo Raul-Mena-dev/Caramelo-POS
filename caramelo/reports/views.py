@@ -1,14 +1,14 @@
+import csv
 from datetime import datetime, time
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
-from sales.models import CajaTurno, Venta, VentaItem
-
-from sales.models import Venta, VentaItem
+from sales.models import CajaTurno, Venta, VentaItem, VentaSinStock
 
 
 def _parse_date(s: str):
@@ -57,20 +57,30 @@ def _get_range(request):
 
 def _build_corte(inicio, fin):
     ventas = Venta.objects.filter(fecha__range=(inicio, fin), estatus="ACTIVA")
+    items_contables = VentaItem.objects.filter(
+        venta__in=ventas,
+        producto__no_contabilizable=False,
+    )
 
-    totales = ventas.aggregate(total=Sum("total"), tickets=Count("id"))
+    totales = items_contables.aggregate(
+        total=Sum("subtotal"),
+        tickets=Count("venta", distinct=True),
+        subtotal_base=Sum("base_total"),
+        total_ieps=Sum("ieps_total"),
+        total_iva=Sum("iva_total"),
+    )
     total_val = totales["total"] or Decimal("0.00")
     tickets_val = totales["tickets"] or 0
     promedio = (total_val / tickets_val) if tickets_val else Decimal("0.00")
 
     por_metodo = list(
-        ventas.values("metodo_pago")
-        .annotate(total=Sum("total"), tickets=Count("id"))
+        items_contables.values("venta__metodo_pago")
+        .annotate(total=Sum("subtotal"), tickets=Count("venta", distinct=True))
         .order_by("-total")
     )
 
     top = list(
-        VentaItem.objects.filter(venta__in=ventas)
+        items_contables
         .values("producto__nombre")
         .annotate(cantidad=Sum("cantidad"), dinero=Sum("subtotal"))
         .order_by("-cantidad")[:10]
@@ -99,11 +109,6 @@ def corte_diario_pdf(request):
     start_date, end_date, inicio, fin = _get_range(request)
     ventas, totales, promedio, por_metodo, top = _build_corte(inicio, fin)
 
-    # PDF (formato carta)
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.units import inch
-
     response = render_pdf_corte(
         start_date=start_date,
         end_date=end_date,
@@ -115,12 +120,115 @@ def corte_diario_pdf(request):
     return response
 
 
+@login_required
+def corte_diario_csv(request):
+    start_date, end_date, inicio, fin = _get_range(request)
+    items = (
+        VentaItem.objects.filter(
+            venta__fecha__range=(inicio, fin),
+            venta__estatus="ACTIVA",
+            producto__no_contabilizable=False,
+        )
+        .select_related("venta", "producto", "venta__cliente_fiscal")
+        .order_by("venta__fecha", "venta__folio", "id")
+    )
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="corte_{start_date}_{end_date}.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow([
+        "fecha",
+        "folio",
+        "metodo_pago",
+        "cliente",
+        "rfc",
+        "producto",
+        "cantidad",
+        "base",
+        "ieps",
+        "iva",
+        "subtotal",
+        "retencion_isr_venta",
+        "total_venta",
+    ])
+    for item in items:
+        cliente = item.venta.cliente_fiscal
+        writer.writerow([
+            timezone.localtime(item.venta.fecha).strftime("%Y-%m-%d %H:%M"),
+            item.venta.folio,
+            item.venta.metodo_pago,
+            cliente.razon_social if cliente else "Publico general",
+            cliente.rfc if cliente else "",
+            item.producto.nombre,
+            item.cantidad,
+            item.base_total,
+            item.ieps_total,
+            item.iva_total,
+            item.subtotal,
+            item.venta.retencion_isr,
+            item.venta.total,
+        ])
+    return response
+
+
+@login_required
+def ventas_sin_stock(request):
+    start_date, end_date, inicio, fin = _get_range(request)
+    faltantes = (
+        VentaSinStock.objects.filter(fecha__range=(inicio, fin))
+        .select_related("venta", "producto", "usuario")
+        .order_by("-fecha")
+    )
+    totales = faltantes.aggregate(cantidad=Sum("cantidad_faltante"), eventos=Count("id"))
+    return render(request, "reports/sin_stock.html", {
+        "start_date": start_date,
+        "end_date": end_date,
+        "faltantes": faltantes,
+        "totales": totales,
+    })
+
+
+@login_required
+def ventas_sin_stock_csv(request):
+    start_date, end_date, inicio, fin = _get_range(request)
+    faltantes = (
+        VentaSinStock.objects.filter(fecha__range=(inicio, fin))
+        .select_related("venta", "producto", "usuario")
+        .order_by("fecha")
+    )
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="ventas_sin_stock_{start_date}_{end_date}.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow([
+        "fecha",
+        "folio",
+        "producto",
+        "cantidad_solicitada",
+        "stock_disponible",
+        "cantidad_faltante",
+        "usuario",
+    ])
+    for row in faltantes:
+        writer.writerow([
+            timezone.localtime(row.fecha).strftime("%Y-%m-%d %H:%M"),
+            row.venta.folio,
+            row.producto.nombre,
+            row.cantidad_solicitada,
+            row.stock_disponible,
+            row.cantidad_faltante,
+            row.usuario.username,
+        ])
+    return response
+
+
 def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top):
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
 
     width, height = letter
-    resp = __import__("django.http").http.HttpResponse(content_type="application/pdf")
+    resp = HttpResponse(content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="corte_{start_date}_{end_date}.pdf"'
 
     c = canvas.Canvas(resp, pagesize=letter)
@@ -145,6 +253,10 @@ def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top
     c.drawString(50, y, f"Ticket promedio: ${round(promedio, 2)}")
     y -= 22
 
+    c.setFont("Helvetica", 10)
+    c.drawString(50, y, f"Base: ${totales.get('subtotal_base') or 0}  IEPS: ${totales.get('total_ieps') or 0}  IVA: ${totales.get('total_iva') or 0}")
+    y -= 22
+
     # Por método
     c.setFont("Helvetica-Bold", 12)
     c.drawString(50, y, "Por método de pago")
@@ -156,7 +268,7 @@ def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top
         y -= 14
     else:
         for r in por_metodo:
-            c.drawString(50, y, f"- {r['metodo_pago']}: ${r['total']}  (tickets: {r['tickets']})")
+            c.drawString(50, y, f"- {r['venta__metodo_pago']}: ${r['total']}  (tickets: {r['tickets']})")
             y -= 14
             if y < 80:
                 c.showPage()
@@ -295,4 +407,3 @@ def corte_turno_pdf(request, turno_id: int):
     c.showPage()
     c.save()
     return resp
-

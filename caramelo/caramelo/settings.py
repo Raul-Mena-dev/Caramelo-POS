@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -77,16 +78,24 @@ WSGI_APPLICATION = 'caramelo.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "caramelo_db",
-        "USER": "caramelo_user",
-        "PASSWORD": "123456",
-        "HOST": "127.0.0.1",
-        "PORT": "5433",
+if os.environ.get("CARAMELO_USE_SQLITE", "").lower() in {"1", "true", "yes"}:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "caramelo_db",
+            "USER": "caramelo_user",
+            "PASSWORD": "123456",
+            "HOST": "127.0.0.1",
+            "PORT": "5433",
+        }
+    }
 
 LANGUAGE_CODE = "es-mx"
 TIME_ZONE = "America/Mexico_City"

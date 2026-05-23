@@ -4,7 +4,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">Inventario</h4>
-  <a class="btn btn-primary" href="{% url 'catalog_producto_alta' %}">Nuevo producto</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'catalog_ajuste_inventario' %}">Ajuste</a>
+    <a class="btn btn-outline-primary" href="{% url 'catalog_entrada_compra' %}">Entrada de compra</a>
+    <a class="btn btn-outline-success" href="{% url 'catalog_producto_rapido' %}?next={% url 'catalog_inventario' %}">Alta rápida</a>
+    <a class="btn btn-primary" href="{% url 'catalog_producto_alta' %}">Nuevo producto</a>
+  </div>
 </div>
 
 <form method="get" class="row g-2 mb-3">
@@ -21,6 +26,14 @@
   </div>
 </form>
 
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn btn-sm {% if not filtro %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'catalog_inventario' %}{% if q %}?q={{ q }}{% endif %}">Todos</a>
+  <a class="btn btn-sm {% if filtro == 'stock_bajo' %}btn-danger{% else %}btn-outline-danger{% endif %}" href="{% url 'catalog_inventario' %}?filtro=stock_bajo{% if q %}&q={{ q }}{% endif %}">Stock bajo</a>
+  <a class="btn btn-sm {% if filtro == 'sin_stock' %}btn-warning{% else %}btn-outline-warning{% endif %}" href="{% url 'catalog_inventario' %}?filtro=sin_stock{% if q %}&q={{ q }}{% endif %}">Sin stock</a>
+  <a class="btn btn-sm {% if filtro == 'sin_codigo' %}btn-secondary{% else %}btn-outline-secondary{% endif %}" href="{% url 'catalog_inventario' %}?filtro=sin_codigo{% if q %}&q={{ q }}{% endif %}">Sin código</a>
+  <a class="btn btn-sm {% if filtro == 'no_contable' %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{% url 'catalog_inventario' %}?filtro=no_contable{% if q %}&q={{ q }}{% endif %}">No contables</a>
+</div>
+
 {% if productos_sin_grupo %}
   <div class="card mb-3">
     <div class="card-body">
@@ -30,8 +43,11 @@
           <tr>
             <th>Producto</th>
             <th>SKU</th>
+            <th>Unidad</th>
             <th class="text-end">Stock</th>
+            <th class="text-end">Mín.</th>
             <th class="text-end">Precio</th>
+            <th class="text-center">Contable</th>
             <th></th>
           </tr>
         </thead>
@@ -40,10 +56,14 @@
             <tr>
               <td>{{ p.nombre }}</td>
               <td>{{ p.sku }}</td>
-              <td class="text-end">{{ p.stock_actual }}</td>
+              <td>{{ p.get_unidad_venta_display }}</td>
+              <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
+              <td class="text-end">{{ p.stock_minimo }}</td>
               <td class="text-end">${{ p.precio_con_iva }}</td>
+              <td class="text-center">{% if p.no_contabilizable %}No{% else %}Si{% endif %}</td>
               <td class="text-end">
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'catalog_producto_editar' p.id %}">Editar</a>
+                <a class="btn btn-sm btn-outline-danger" href="{% url 'catalog_producto_borrar' p.id %}">Borrar</a>
               </td>
             </tr>
           {% endfor %}
@@ -70,8 +90,11 @@
               <tr>
                 <th>Producto</th>
                 <th>SKU</th>
+                <th>Unidad</th>
                 <th class="text-end">Stock</th>
+                <th class="text-end">Mín.</th>
                 <th class="text-end">Precio</th>
+                <th class="text-center">Contable</th>
                 <th></th>
               </tr>
             </thead>
@@ -80,10 +103,14 @@
                 <tr>
                   <td>{{ p.nombre }}</td>
                   <td>{{ p.sku }}</td>
-                  <td class="text-end">{{ p.stock_actual }}</td>
+                  <td>{{ p.get_unidad_venta_display }}</td>
+                  <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
+                  <td class="text-end">{{ p.stock_minimo }}</td>
                   <td class="text-end">${{ p.precio_con_iva }}</td>
+                  <td class="text-center">{% if p.no_contabilizable %}No{% else %}Si{% endif %}</td>
                   <td class="text-end">
                     <a class="btn btn-sm btn-outline-primary" href="{% url 'catalog_producto_editar' p.id %}">Editar</a>
+                    <a class="btn btn-sm btn-outline-danger" href="{% url 'catalog_producto_borrar' p.id %}">Borrar</a>
                   </td>
                 </tr>
               {% endfor %}
@@ -100,8 +127,11 @@
               <tr>
                 <th>Producto</th>
                 <th>SKU</th>
+                <th>Unidad</th>
                 <th class="text-end">Stock</th>
+                <th class="text-end">Mín.</th>
                 <th class="text-end">Precio</th>
+                <th class="text-center">Contable</th>
                 <th></th>
               </tr>
             </thead>
@@ -110,15 +140,19 @@
                 <tr>
                   <td>{{ p.nombre }}</td>
                   <td>{{ p.sku }}</td>
-                  <td class="text-end">{{ p.stock_actual }}</td>
+                  <td>{{ p.get_unidad_venta_display }}</td>
+                  <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
+                  <td class="text-end">{{ p.stock_minimo }}</td>
                   <td class="text-end">${{ p.precio_con_iva }}</td>
+                  <td class="text-center">{% if p.no_contabilizable %}No{% else %}Si{% endif %}</td>
                   <td class="text-end">
                     <a class="btn btn-sm btn-outline-primary" href="{% url 'catalog_producto_editar' p.id %}">Editar</a>
+                    <a class="btn btn-sm btn-outline-danger" href="{% url 'catalog_producto_borrar' p.id %}">Borrar</a>
                   </td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="4" class="text-center text-muted">Sin productos</td>
+                  <td colspan="8" class="text-center text-muted">Sin productos</td>
                 </tr>
               {% endfor %}
             </tbody>

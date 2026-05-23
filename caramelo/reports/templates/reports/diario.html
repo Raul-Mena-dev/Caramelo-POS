@@ -9,6 +9,10 @@
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{% url 'pos_home' %}">Volver al POS</a>
+    <a class="btn btn-outline-danger"
+       href="{% url 'ventas_sin_stock' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}">
+      Ventas sin stock
+    </a>
   </div>
 </div>
 
@@ -31,6 +35,10 @@
         <a class="btn btn-outline-success w-100"
            href="{% url 'corte_diario_pdf' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}">
           Imprimir PDF
+        </a>
+        <a class="btn btn-outline-secondary w-100"
+           href="{% url 'corte_diario_csv' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}">
+          Descargar CSV
         </a>
       </div>
     </form>
@@ -67,6 +75,33 @@
   </div>
 </div>
 
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">Base</div>
+        <div class="fs-4 fw-bold">${{ totales.subtotal_base|default:"0.00" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">IEPS</div>
+        <div class="fs-4 fw-bold">${{ totales.total_ieps|default:"0.00" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted">IVA</div>
+        <div class="fs-4 fw-bold">${{ totales.total_iva|default:"0.00" }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-5">
     <div class="card shadow-sm">
@@ -86,7 +121,7 @@
             <tbody>
               {% for r in por_metodo %}
               <tr>
-                <td>{{ r.metodo_pago }}</td>
+                <td>{{ r.venta__metodo_pago }}</td>
                 <td class="text-end fw-bold">${{ r.total }}</td>
                 <td class="text-end">{{ r.tickets }}</td>
               </tr>
