@@ -10,7 +10,7 @@
           <h4 class="mb-0">Alta rápida de producto</h4>
           <a class="btn btn-outline-secondary btn-sm" href="{{ next_url }}">Volver</a>
         </div>
-        <div class="text-muted mb-3">Si dejas vacío el precio de venta, se calcula con costo, piezas y margen.</div>
+        <div class="text-muted mb-3">Si dejas vacío el precio de venta, se calcula con costo, unidades, impuestos y margen.</div>
 
         {% if barcode %}
           <div class="alert alert-warning">Código escaneado: <b>{{ barcode }}</b></div>
@@ -39,7 +39,7 @@
               {{ form.costo_compra.errors }}
             </div>
             <div class="col-md-4">
-              <label class="form-label">Piezas compradas <span class="help-dot" title="Cuántas piezas trae la compra; también se usa como stock inicial si dejas ese campo vacío.">?</span></label>
+              <label class="form-label">Unidades compradas <span class="help-dot" title="Unidades base recibidas; también se usa como stock inicial si dejas ese campo vacío.">?</span></label>
               {{ form.unidades_compra }}
               {{ form.unidades_compra.errors }}
             </div>
@@ -52,12 +52,27 @@
 
           <div class="row g-2 mt-1">
             <div class="col-md-4">
+              <label class="form-label">Marca</label>
+              {{ form.marca }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">IEPS %</label>
+              {{ form.ieps_porcentaje }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">IVA %</label>
+              {{ form.iva_porcentaje }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
               <label class="form-label">Precio venta opcional <span class="help-dot" title="Precio final al público. Déjalo vacío para usar el precio sugerido.">?</span></label>
               {{ form.precio_con_iva }}
               {{ form.precio_con_iva.errors }}
             </div>
             <div class="col-md-4">
-              <label class="form-label">Stock inicial <span class="help-dot" title="Cantidad disponible para vender. Si lo dejas vacío, usa piezas compradas.">?</span></label>
+              <label class="form-label">Stock inicial <span class="help-dot" title="Cantidad disponible para vender. Si lo dejas vacío, usa las unidades compradas.">?</span></label>
               {{ form.stock_actual }}
               {{ form.stock_actual.errors }}
             </div>
@@ -75,7 +90,7 @@
               {{ form.grupo_nombre.errors }}
             </div>
             <div class="col-md-6">
-              <label class="form-label">Unidad <span class="help-dot" title="Pieza para venta normal; kilogramo para productos a granel.">?</span></label>
+              <label class="form-label">Unidad <span class="help-dot" title="Unidad en la que se vende y descuenta inventario.">?</span></label>
               {{ form.unidad_venta }}
               {{ form.unidad_venta.errors }}
             </div>
@@ -105,17 +120,23 @@
     const piezas = document.querySelector("[name='unidades_compra']");
     const margen = document.querySelector("[name='margen_porcentaje']");
     const ayuda = document.getElementById("precio-ayuda");
-    const halfUp = (value) => Math.ceil(value / 0.5) * 0.5;
+    const iva = document.querySelector("[name='iva_porcentaje']");
+    const ieps = document.querySelector("[name='ieps_porcentaje']");
+    const incremento = Number("{{ negocio.redondeo_precios }}") || 0.01;
+    const roundUp = (value) => Math.ceil((value / incremento) - 1e-9) * incremento;
     function recalc() {
       if (!ayuda) return;
       const c = parseFloat(costo?.value || "0");
       const p = parseFloat(piezas?.value || "0");
       const m = parseFloat(margen?.value || "0");
       const unit = p > 0 ? c / p : 0;
-      const sugerido = halfUp(unit * (1 + (m / 100)) * 1.08 * 1.16);
+      const ivaRate = parseFloat(iva?.value || "0") / 100;
+      const iepsRate = parseFloat(ieps?.value || "0") / 100;
+      const base = unit * (1 + (m / 100));
+      const sugerido = roundUp((base + (base * iepsRate)) * (1 + ivaRate));
       ayuda.textContent = `Costo unitario: $${unit.toFixed(2)} | Precio sugerido: $${sugerido.toFixed(2)}`;
     }
-    [costo, piezas, margen].forEach((el) => el?.addEventListener("input", recalc));
+    [costo, piezas, margen, iva, ieps].forEach((el) => el?.addEventListener("input", recalc));
     recalc();
     if (barcode && !barcode.value) barcode.focus();
     else if (nombre) nombre.focus();

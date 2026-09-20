@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Nueva compra{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="mb-0">Nueva compra</h3><div class="text-muted">Registra varias partidas y recibe todo el inventario en una operación.</div></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'catalog_proveedor_nuevo' %}">Nuevo proveedor</a><a class="btn btn-outline-secondary" href="{% url 'catalog_compras' %}">Cancelar</a></div></div>
+<form method="post" id="compra-form">{% csrf_token %}
+  <div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-3">
+    <div class="col-md-5"><label class="form-label">Proveedor</label>{{ form.proveedor }}{{ form.proveedor.errors }}</div>
+    <div class="col-md-3"><label class="form-label">Factura / nota</label>{{ form.documento }}{{ form.documento.errors }}</div>
+    <div class="col-md-4"><label class="form-label">Observaciones</label>{{ form.notas }}{{ form.notas.errors }}</div>
+  </div></div></div>
+  <div class="card shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong>Partidas</strong><button type="button" class="btn btn-sm btn-outline-primary" id="agregar-partida">Agregar producto</button></div><div class="card-body">
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors }}</div>{% endif %}
+    <div id="partidas">
+      {% for partida in formset %}
+      <div class="partida border rounded p-3 mb-2"><div class="row g-2 align-items-end">
+        <div class="col-lg-5"><label class="form-label">Producto</label>{{ partida.producto }}{{ partida.producto.errors }}</div>
+        <div class="col-lg-2"><label class="form-label">Presentaciones</label>{{ partida.cantidad_presentaciones }}{{ partida.cantidad_presentaciones.errors }}</div>
+        <div class="col-lg-2"><label class="form-label">Unidades c/u</label>{{ partida.factor_conversion }}{{ partida.factor_conversion.errors }}</div>
+        <div class="col-lg-2"><label class="form-label">Costo total</label>{{ partida.costo_total }}{{ partida.costo_total.errors }}</div>
+        <div class="col-lg-1">{{ partida.id }}<span class="d-none">{{ partida.DELETE }}</span><button type="button" class="btn btn-outline-danger quitar-partida">×</button></div>
+      </div></div>
+      {% endfor %}
+    </div>
+    <template id="partida-vacia"><div class="partida border rounded p-3 mb-2"><div class="row g-2 align-items-end">
+      <div class="col-lg-5"><label class="form-label">Producto</label>{{ formset.empty_form.producto }}</div>
+      <div class="col-lg-2"><label class="form-label">Presentaciones</label>{{ formset.empty_form.cantidad_presentaciones }}</div>
+      <div class="col-lg-2"><label class="form-label">Unidades c/u</label>{{ formset.empty_form.factor_conversion }}</div>
+      <div class="col-lg-2"><label class="form-label">Costo total</label>{{ formset.empty_form.costo_total }}</div>
+      <div class="col-lg-1"><span class="d-none">{{ formset.empty_form.DELETE }}</span><button type="button" class="btn btn-outline-danger quitar-partida">×</button></div>
+    </div></div></template>
+    <div class="d-flex justify-content-between align-items-center mt-3"><div class="fs-5">Total estimado: <strong id="total-compra">$0.00</strong></div><button class="btn btn-primary btn-lg">Recibir compra y actualizar inventario</button></div>
+  </div></div>
+</form>
+{% endblock %}
+{% block extra_js %}{{ factores|json_script:"factores-producto" }}<script>
+(function(){
+  const factores=JSON.parse(document.getElementById('factores-producto').textContent);
+  const container=document.getElementById('partidas'); const totalForms=document.getElementById('id_items-TOTAL_FORMS'); const template=document.getElementById('partida-vacia');
+  function total(){let n=0; container.querySelectorAll("input[name$='-costo_total']").forEach(i=>{const row=i.closest('.partida'); const del=row?.querySelector("input[name$='-DELETE']"); if(!del?.checked)n+=Number(i.value||0)}); document.getElementById('total-compra').textContent=`$${n.toFixed(2)}`}
+  function bind(row){row.querySelector('.quitar-partida')?.addEventListener('click',()=>{const del=row.querySelector("input[name$='-DELETE']"); if(del){del.checked=true; row.classList.add('d-none')}else row.remove(); total()}); row.querySelector("input[name$='-costo_total']")?.addEventListener('input',total); const producto=row.querySelector("select[name$='-producto']"); const factor=row.querySelector("input[name$='-factor_conversion']"); producto?.addEventListener('change',()=>{if(factor)factor.value=factores[producto.value]||'1'})}
+  container.querySelectorAll('.partida').forEach(bind);
+  document.getElementById('agregar-partida').addEventListener('click',()=>{const index=Number(totalForms.value); const holder=document.createElement('div'); holder.innerHTML=template.innerHTML.replaceAll('__prefix__',index); const row=holder.firstElementChild; container.appendChild(row); totalForms.value=index+1; bind(row)});
+  total();
+})();
+</script>{% endblock %}

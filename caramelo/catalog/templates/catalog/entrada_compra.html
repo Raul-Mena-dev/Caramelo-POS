@@ -24,9 +24,22 @@
               {{ form.producto.errors }}
             </div>
             <div class="col-md-4">
-              <label class="form-label">Cantidad a sumar</label>
+              <label class="form-label">Unidades a sumar directamente</label>
               {{ form.cantidad }}
               {{ form.cantidad.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-6">
+              <label class="form-label">Presentaciones compradas</label>
+              {{ form.cantidad_presentaciones }}
+              <div class="form-text">Ejemplo: 3 cajas.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Unidades por presentación</label>
+              {{ form.factor_conversion }}
+              <div class="form-text">Ejemplo: 24 piezas por caja. Si usas estos campos, se calcula el stock automáticamente.</div>
             </div>
           </div>
 
@@ -37,7 +50,7 @@
               {{ form.costo_compra.errors }}
             </div>
             <div class="col-md-6">
-              <label class="form-label">Unidades compradas</label>
+              <label class="form-label">Unidades para calcular costo</label>
               {{ form.unidades_compra }}
               {{ form.unidades_compra.errors }}
             </div>

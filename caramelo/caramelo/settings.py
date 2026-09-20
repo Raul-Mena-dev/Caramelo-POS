@@ -21,12 +21,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-z8)p%_lgx7vqlb#2obvln!&)gl87sup@9n%jc6&)w9)lv&p#xi'
+SECRET_KEY = os.environ.get(
+    "POS_SECRET_KEY",
+    "django-insecure-desarrollo-cambiar-en-produccion",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("POS_DEBUG", "true").lower() in {"1", "true", "yes"}
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get("POS_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if host.strip()]
 
 
 # Application definition
@@ -39,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Apps
+    "core",
     "catalog",
     "sales",
     "pos",
@@ -67,6 +71,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.negocio',
             ],
         },
     },
@@ -78,7 +83,7 @@ WSGI_APPLICATION = 'caramelo.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-if os.environ.get("CARAMELO_USE_SQLITE", "").lower() in {"1", "true", "yes"}:
+if os.environ.get("POS_USE_SQLITE", os.environ.get("CARAMELO_USE_SQLITE", "")).lower() in {"1", "true", "yes"}:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -89,11 +94,11 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "caramelo_db",
-            "USER": "caramelo_user",
-            "PASSWORD": "123456",
-            "HOST": "127.0.0.1",
-            "PORT": "5433",
+            "NAME": os.environ.get("POS_DB_NAME", "caramelo_db"),
+            "USER": os.environ.get("POS_DB_USER", "caramelo_user"),
+            "PASSWORD": os.environ.get("POS_DB_PASSWORD", ""),
+            "HOST": os.environ.get("POS_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("POS_DB_PORT", "5433"),
         }
     }
 
@@ -142,7 +147,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [
     BASE_DIR / "img",
 ]

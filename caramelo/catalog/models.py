@@ -1,22 +1,28 @@
 from decimal import Decimal, ROUND_CEILING
 
 from django.db import models
+from django.conf import settings
+from django.core.validators import MinValueValidator
 
 
 MONEY = Decimal("0.01")
-HALF_PESO = Decimal("0.50")
 
 
 def _money(value):
     return Decimal(value or "0").quantize(MONEY)
 
 
-def redondear_medio_peso_arriba(value):
+def redondear_arriba(value, incremento=Decimal("0.01")):
     value = Decimal(value or "0")
+    incremento = Decimal(incremento or "0.01")
     if value <= 0:
         return Decimal("0.00")
-    units = (value / HALF_PESO).to_integral_value(rounding=ROUND_CEILING)
-    return (units * HALF_PESO).quantize(MONEY)
+    units = (value / incremento).to_integral_value(rounding=ROUND_CEILING)
+    return (units * incremento).quantize(MONEY)
+
+
+def redondear_medio_peso_arriba(value):
+    return redondear_arriba(value, Decimal("0.50"))
 
 
 class GrupoProducto(models.Model):
@@ -43,21 +49,45 @@ class SubgrupoProducto(models.Model):
         return f"{self.grupo.nombre} / {self.nombre}"
 
 
+class Proveedor(models.Model):
+    nombre = models.CharField(max_length=180, unique=True)
+    rfc = models.CharField(max_length=13, blank=True, default="")
+    contacto = models.CharField(max_length=120, blank=True, default="")
+    telefono = models.CharField(max_length=30, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    direccion = models.CharField(max_length=240, blank=True, default="")
+    notas = models.TextField(blank=True, default="")
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
 class Producto(models.Model):
     UNIDADES_VENTA = [
         ("PIEZA", "Pieza"),
         ("KG", "Kilogramo"),
+        ("GR", "Gramo"),
+        ("L", "Litro"),
+        ("ML", "Mililitro"),
+        ("PAQUETE", "Paquete"),
+        ("CAJA", "Caja"),
+        ("SERVICIO", "Servicio"),
     ]
 
     nombre = models.CharField(max_length=180)
+    marca = models.CharField(max_length=100, blank=True, default="")
     sku = models.CharField(max_length=60, blank=True, default="")
     barcode = models.CharField(max_length=80, blank=True, null=True, unique=True)
     precio_con_iva = models.DecimalField(max_digits=12, decimal_places=2)
     costo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     costo_compra = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     unidades_compra = models.DecimalField(max_digits=12, decimal_places=3, default=1)
-    ieps_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=8)
-    iva_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=16)
+    ieps_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    iva_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     margen_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     precio_sin_impuestos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     precio_calculado = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -66,6 +96,9 @@ class Producto(models.Model):
     stock_actual = models.DecimalField(max_digits=12, decimal_places=3, default=0)  # permite 0.500 etc
     stock_minimo = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     unidad_venta = models.CharField(max_length=10, choices=UNIDADES_VENTA, default="PIEZA")
+    presentacion_compra = models.CharField(max_length=40, blank=True, default="Pieza")
+    factor_conversion_compra = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    controla_inventario = models.BooleanField(default=True)
     no_contabilizable = models.BooleanField(default=False)
     activo = models.BooleanField(default=True)
     grupo = models.ForeignKey(GrupoProducto, on_delete=models.PROTECT, null=True, blank=True, related_name="productos")
@@ -92,7 +125,10 @@ class Producto(models.Model):
         if self.usar_precio_mandatorio and self.precio_mandatorio:
             self.precio_con_iva = _money(self.precio_mandatorio)
         else:
-            self.precio_con_iva = redondear_medio_peso_arriba(precio_calculado)
+            from core.models import ConfiguracionNegocio
+
+            incremento = Decimal(ConfiguracionNegocio.cargar().redondeo_precios)
+            self.precio_con_iva = redondear_arriba(precio_calculado, incremento)
         self.costo = _money(costo_unitario)
         return self.precio_con_iva
 
@@ -115,3 +151,65 @@ class Producto(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def permite_decimales(self):
+        return self.unidad_venta in {"KG", "GR", "L", "ML"}
+
+    @property
+    def abreviatura_unidad(self):
+        return {
+            "PIEZA": "pza",
+            "KG": "kg",
+            "GR": "g",
+            "L": "l",
+            "ML": "ml",
+            "PAQUETE": "paq",
+            "CAJA": "caja",
+            "SERVICIO": "serv",
+        }.get(self.unidad_venta, "u")
+
+
+class Compra(models.Model):
+    ESTATUS = [("RECIBIDA", "Recibida"), ("CANCELADA", "Cancelada")]
+
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.PROTECT, related_name="compras")
+    documento = models.CharField(max_length=80, blank=True, default="")
+    fecha = models.DateTimeField(auto_now_add=True)
+    total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    notas = models.CharField(max_length=240, blank=True, default="")
+    estatus = models.CharField(max_length=12, choices=ESTATUS, default="RECIBIDA")
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta:
+        ordering = ["-fecha", "-id"]
+
+    @property
+    def folio(self):
+        return f"C{self.pk}"
+
+    def __str__(self):
+        return f"{self.folio} - {self.proveedor}"
+
+
+class CompraItem(models.Model):
+    compra = models.ForeignKey(Compra, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name="compras_items")
+    cantidad_presentaciones = models.DecimalField(
+        max_digits=12, decimal_places=3, validators=[MinValueValidator(Decimal("0.001"))]
+    )
+    factor_conversion = models.DecimalField(
+        max_digits=12, decimal_places=3, default=1, validators=[MinValueValidator(Decimal("0.001"))]
+    )
+    cantidad_unidades = models.DecimalField(max_digits=12, decimal_places=3)
+    costo_total = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
+    costo_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    costo_promedio_resultante = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_anterior = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    stock_nuevo = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.compra.folio} - {self.producto}"

@@ -6,12 +6,14 @@ from django.urls import reverse
 
 from sales.models import MovimientoInventario
 from sales.models import Venta, VentaItem
+from core.models import ConfiguracionNegocio
 
-from .models import Producto
+from .models import Compra, CompraItem, Producto, Proveedor
 
 
 class ProductoPricingTests(TestCase):
     def test_calcula_precio_con_impuestos_margen_y_redondeo(self):
+        ConfiguracionNegocio.objects.create(redondeo_precios="0.50")
         producto = Producto(
             nombre="Dulce por pieza",
             costo_compra=Decimal("40.00"),
@@ -43,6 +45,56 @@ class ProductoPricingTests(TestCase):
 
 
 class EntradaCompraTests(TestCase):
+    def test_compra_formal_con_varias_partidas_actualiza_stock_y_costos(self):
+        user = get_user_model().objects.create_superuser("compras", "compras@example.com", "pass")
+        proveedor = Proveedor.objects.create(nombre="Distribuidora Centro")
+        aceite = Producto.objects.create(nombre="Aceite", precio_con_iva=Decimal("20.00"), stock_actual=Decimal("1.000"))
+        arroz = Producto.objects.create(nombre="Arroz", precio_con_iva=Decimal("10.00"), stock_actual=Decimal("0.000"))
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("catalog_compra_nueva"), {
+            "proveedor": proveedor.id,
+            "documento": "FAC-22",
+            "notas": "Entrega completa",
+            "items-TOTAL_FORMS": "2",
+            "items-INITIAL_FORMS": "0",
+            "items-MIN_NUM_FORMS": "1",
+            "items-MAX_NUM_FORMS": "1000",
+            "items-0-producto": aceite.id,
+            "items-0-cantidad_presentaciones": "2",
+            "items-0-factor_conversion": "12",
+            "items-0-costo_total": "120.00",
+            "items-1-producto": arroz.id,
+            "items-1-cantidad_presentaciones": "5",
+            "items-1-factor_conversion": "1",
+            "items-1-costo_total": "30.00",
+        })
+
+        compra = Compra.objects.get()
+        self.assertRedirects(response, reverse("catalog_compra_detalle", kwargs={"compra_id": compra.id}))
+        self.assertEqual(compra.total, Decimal("150.00"))
+        self.assertEqual(CompraItem.objects.filter(compra=compra).count(), 2)
+        self.assertEqual(CompraItem.objects.get(compra=compra, producto=aceite).costo_promedio_resultante, Decimal("4.80"))
+        aceite.refresh_from_db()
+        arroz.refresh_from_db()
+        self.assertEqual(aceite.stock_actual, Decimal("25.000"))
+        self.assertEqual(aceite.costo, Decimal("4.80"))
+        self.assertEqual(arroz.stock_actual, Decimal("5.000"))
+        self.assertEqual(arroz.costo, Decimal("6.00"))
+        self.assertEqual(MovimientoInventario.objects.filter(tipo="ENTRADA", referencia="FAC-22").count(), 2)
+
+    def test_pantalla_nueva_compra_renderiza_formset(self):
+        user = get_user_model().objects.create_superuser("compras_ui", "compras-ui@example.com", "pass")
+        Proveedor.objects.create(nombre="Proveedor UI")
+        Producto.objects.create(nombre="Producto UI", precio_con_iva=Decimal("10.00"))
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("catalog_compra_nueva"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "id_items-TOTAL_FORMS")
+        self.assertContains(response, "Recibir compra y actualizar inventario")
+
     def test_entrada_compra_suma_stock_actualiza_precio_y_crea_movimiento(self):
         user = get_user_model().objects.create_superuser("admin", "admin@example.com", "pass")
         producto = Producto.objects.create(
@@ -66,7 +118,7 @@ class EntradaCompraTests(TestCase):
         self.assertRedirects(response, reverse("catalog_inventario"))
         producto.refresh_from_db()
         self.assertEqual(producto.stock_actual, Decimal("3.500"))
-        self.assertEqual(producto.precio_con_iva, Decimal("16.00"))
+        self.assertEqual(producto.precio_con_iva, Decimal("15.66"))
         self.assertTrue(MovimientoInventario.objects.filter(producto=producto, tipo="ENTRADA", referencia="FAC-1").exists())
 
     def test_producto_rapido_crea_producto_con_barcode_precargado(self):
@@ -91,7 +143,7 @@ class EntradaCompraTests(TestCase):
         producto = Producto.objects.get(barcode="7501234567890")
         self.assertEqual(producto.nombre, "Paleta")
         self.assertEqual(producto.precio_con_iva, Decimal("5.00"))
-        self.assertEqual(producto.ieps_porcentaje, Decimal("8"))
+        self.assertEqual(producto.ieps_porcentaje, Decimal("0"))
         self.assertEqual(producto.stock_actual, Decimal("10.000"))
         self.assertEqual(producto.stock_minimo, Decimal("2.000"))
 
@@ -123,3 +175,14 @@ class EntradaCompraTests(TestCase):
         self.assertRedirects(response, reverse("catalog_inventario"))
         producto.refresh_from_db()
         self.assertFalse(producto.activo)
+
+    def test_inventario_localiza_producto_por_barcode(self):
+        user = get_user_model().objects.create_superuser("admin5", "admin5@example.com", "pass")
+        Producto.objects.create(nombre="Producto escaneado", barcode="7509999999999", precio_con_iva=Decimal("12.00"))
+        Producto.objects.create(nombre="Producto diferente", barcode="7501111111111", precio_con_iva=Decimal("15.00"))
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("catalog_inventario"), {"q": "7509999999999"})
+
+        self.assertContains(response, "Producto escaneado")
+        self.assertNotContains(response, "Producto diferente")

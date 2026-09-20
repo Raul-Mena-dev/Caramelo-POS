@@ -11,6 +11,7 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'caramelo.settings')
+default_settings = "caramelo.settings_demo" if os.environ.get("VERCEL") else "caramelo.settings"
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', default_settings)
 
 application = get_asgi_application()

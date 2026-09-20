@@ -13,7 +13,7 @@
             <a class="btn btn-outline-secondary btn-sm" href="{% url 'catalog_inventario' %}">Inventario</a>
           </div>
         </div>
-        <div class="text-muted mb-3">Actualiza compra, piezas y precio sin tocar opciones fiscales avanzadas salvo que haga falta.</div>
+        <div class="text-muted mb-3">Actualiza compra, unidades y precio sin tocar opciones fiscales avanzadas salvo que haga falta.</div>
 
         <form method="post">
           {% csrf_token %}
@@ -42,7 +42,7 @@
               {{ form.costo_compra.errors }}
             </div>
             <div class="col-md-3">
-              <label class="form-label">Piezas compradas <span class="help-dot" title="Cantidad de piezas de esa compra; sirve para calcular costo unitario.">?</span></label>
+              <label class="form-label">Unidades compradas <span class="help-dot" title="Cantidad de unidades base de esa compra; sirve para calcular costo unitario.">?</span></label>
               {{ form.unidades_compra }}
               {{ form.unidades_compra.errors }}
             </div>
@@ -55,6 +55,24 @@
               <label class="form-label">Stock mínimo <span class="help-dot" title="Nivel a partir del cual se marca como stock bajo.">?</span></label>
               {{ form.stock_minimo }}
               {{ form.stock_minimo.errors }}
+            </div>
+          </div>
+
+          <div class="row g-2 mt-3">
+            <div class="col-md-4">
+              <label class="form-label">Marca</label>
+              {{ form.marca }}
+              {{ form.marca.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Presentación de compra</label>
+              {{ form.presentacion_compra }}
+              {{ form.presentacion_compra.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Unidades por presentación</label>
+              {{ form.factor_conversion_compra }}
+              {{ form.factor_conversion_compra.errors }}
             </div>
           </div>
 
@@ -91,7 +109,7 @@
                 {{ form.sku.errors }}
               </div>
               <div class="col-md-3">
-                <label class="form-label">IEPS % <span class="help-dot" title="Impuesto especial. Para dulces y alimentos no básicos de alta densidad calórica suele usarse 8%; puedes ajustarlo por producto.">?</span></label>
+                <label class="form-label">IEPS % <span class="help-dot" title="Impuesto especial aplicable al producto; usa cero cuando no corresponda.">?</span></label>
                 {{ form.ieps_porcentaje }}
                 {{ form.ieps_porcentaje.errors }}
               </div>
@@ -101,7 +119,7 @@
                 {{ form.iva_porcentaje.errors }}
               </div>
               <div class="col-md-3">
-                <label class="form-label">Costo unitario <span class="help-dot" title="Costo por pieza calculado desde costo total entre piezas compradas.">?</span></label>
+                <label class="form-label">Costo unitario <span class="help-dot" title="Costo por unidad calculado desde costo total entre unidades compradas.">?</span></label>
                 {{ form.costo }}
                 {{ form.costo.errors }}
               </div>
@@ -135,6 +153,10 @@
                 <div class="form-check">
                   {{ form.no_contabilizable }}
                   <label class="form-check-label">No contabilizable</label>
+                </div>
+                <div class="form-check">
+                  {{ form.controla_inventario }}
+                  <label class="form-check-label">Controlar inventario</label>
                 </div>
               </div>
             </div>
@@ -201,17 +223,18 @@
       const iva = document.querySelector("[name='iva_porcentaje']");
       const ieps = document.querySelector("[name='ieps_porcentaje']");
       const ayuda = document.getElementById("precio-ayuda");
-      const halfUp = (value) => Math.ceil(value / 0.5) * 0.5;
+      const incremento = Number("{{ negocio.redondeo_precios }}") || 0.01;
+      const roundUp = (value) => Math.ceil((value / incremento) - 1e-9) * incremento;
       function recalc() {
         if (!ayuda) return;
         const c = parseFloat(costo?.value || "0");
         const p = parseFloat(piezas?.value || "0");
         const m = parseFloat(margen?.value || "0");
-        const ivaRate = parseFloat(iva?.value || "16") / 100;
-        const iepsRate = parseFloat(ieps?.value || "8") / 100;
+        const ivaRate = parseFloat(iva?.value || "0") / 100;
+        const iepsRate = parseFloat(ieps?.value || "0") / 100;
         const unit = p > 0 ? c / p : 0;
         const base = unit * (1 + (m / 100));
-        const sugerido = halfUp((base + (base * iepsRate)) * (1 + ivaRate));
+        const sugerido = roundUp((base + (base * iepsRate)) * (1 + ivaRate));
         ayuda.textContent = `Costo unitario: $${unit.toFixed(2)} | Precio sugerido: $${sugerido.toFixed(2)}`;
       }
       [costo, piezas, margen, iva, ieps].forEach((el) => el?.addEventListener("input", recalc));

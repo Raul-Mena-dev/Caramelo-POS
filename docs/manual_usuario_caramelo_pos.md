@@ -1,6 +1,6 @@
-# Manual de Usuario - Caramelo POS
+# Manual de Usuario - POS Comercio
 
-Guía de operación para dulcería: caja, productos, inventario, compras, reportes y uso con pistola de códigos.
+Guía de operación para tiendas y comercios: caja, productos, inventario, compras, reportes y uso con lector de códigos.
 
 ## 1. Acceso al Sistema
 
@@ -47,7 +47,7 @@ Si el código escaneado no existe, la caja muestra una alerta con **Alta rápida
 
 1. Presione **Alta rápida**.
 2. El código aparecerá precargado.
-3. Capture nombre, costo total, piezas compradas, margen o precio de venta.
+3. Capture nombre, costo total, unidades compradas, margen o precio de venta.
 4. Guarde el producto y regrese a caja.
 
 ### Productos por kilo
@@ -67,8 +67,8 @@ Campos principales:
 | **Nombre** | Nombre comercial visible para el cajero. |
 | **Código de barras** | Código que lee la pistola. |
 | **Costo total compra** | Lo que se pagó por toda la caja, bolsa o paquete. |
-| **Piezas compradas** | Cantidad de piezas recibidas. Sirve para calcular costo unitario. |
-| **Stock inicial** | Cantidad disponible para vender. Si queda vacío, usa piezas compradas. |
+| **Unidades compradas** | Cantidad de unidades base recibidas. Sirve para calcular costo unitario. |
+| **Stock inicial** | Cantidad disponible para vender. Si queda vacío, usa las unidades compradas. |
 | **Stock mínimo** | Nivel de alerta para resurtir. |
 | **Margen %** | Ganancia deseada sobre el costo unitario. |
 | **Precio venta opcional** | Precio final al público. Si se captura, se respeta; si queda vacío, se calcula. |
@@ -81,10 +81,10 @@ El sistema muestra **Costo unitario** y **Precio sugerido** mientras captura.
 
 El sistema está pensado para venta al público general:
 
-- IVA predeterminado: 16%.
-- IEPS predeterminado: 8%, editable por producto.
-- Margen predeterminado: 35%.
-- Redondeo comercial hacia arriba al múltiplo de $0.50.
+- IVA e IEPS predeterminados: configurables desde la administración del negocio.
+- Cada producto puede sobrescribir los porcentajes de impuestos.
+- Margen predeterminado: configurable por el administrador.
+- Redondeo comercial: configurable desde centavos hasta múltiplos de $1.00.
 
 Si captura precio de venta manual, el sistema lo usa como precio fijo.
 
@@ -105,13 +105,18 @@ Use **Ajuste** para conteo físico, merma, caducidad o corrección.
 - Cantidad negativa resta stock.
 - Capture motivo: `MERMA`, `CADUCIDAD`, `CONTEO`, etc.
 
-### Entrada de compra
+### Proveedores y compras
 
-Use **Entrada de compra** para registrar nueva mercancía de un producto existente. Esta opción suma stock, actualiza costos y recalcula precio.
+1. Registre el proveedor desde **Compras → Proveedores**.
+2. Abra **Nueva compra** y capture factura, nota u otra referencia.
+3. Agregue una o varias partidas indicando presentaciones, unidades por presentación y costo total.
+4. Al recibir la compra, el sistema suma inventario, calcula el costo promedio ponderado, recalcula precios y conserva el historial completo.
+
+Ejemplo: `3` cajas con factor `24` agregan `72` piezas al inventario.
 
 ### Ventas sin stock suficiente
 
-El sistema permite vender aunque no haya existencia suficiente para no detener la operación de caja.
+Por defecto el sistema bloquea una venta cuando no hay existencia suficiente. El administrador puede habilitar la venta con faltantes desde Configuración.
 
 - El inventario nunca baja de 0.
 - Si se vende más de lo disponible, el faltante se registra automáticamente.
@@ -131,7 +136,7 @@ Por control fiscal y operativo, no se borra historial de productos ya vendidos.
 
 La mayoría de ventas pueden hacerse a **Público general**.
 
-Si un cliente requiere datos fiscales, se puede seleccionar en caja. Para persona moral, el sistema aplica la retención ISR configurada.
+Si un cliente requiere datos fiscales, se puede seleccionar en caja. La retención para persona moral solo se aplica cuando el administrador habilita esa política fiscal.
 
 ## 10. Corte de Caja y Reportes
 
@@ -149,11 +154,13 @@ Si un cliente requiere datos fiscales, se puede seleccionar en caja. Para person
 3. Presione **Aplicar**.
 4. Puede imprimir PDF o descargar CSV.
 
+El corte muestra costo de lo vendido, utilidad bruta estimada, margen y utilidad por producto. Use **Inventario → Valorización** para consultar valor a costo, valor a venta y utilidad potencial del stock.
+
 ## 11. Recomendaciones Operativas
 
 - Abrir turno antes de empezar a vender.
 - Usar la pistola para evitar errores de captura.
-- Dar de alta productos con costo total y piezas compradas.
+- Dar de alta productos con costo total y unidades compradas.
 - Revisar **Stock bajo** al iniciar o terminar el día.
 - Usar ajustes con motivo cuando haya merma o diferencias de conteo.
 - Cerrar turno al final del día o cambio de cajero.
@@ -164,6 +171,6 @@ Si un cliente requiere datos fiscales, se puede seleccionar en caja. Para person
 | --- | --- |
 | El código escaneado no aparece. | Use **Alta rápida** para crear el producto. |
 | No deja cobrar. | Verifique que haya turno abierto y carrito con productos. |
-| Se vendió sin stock suficiente. | La venta sí se registra, el inventario queda en 0 y el faltante aparece en **Ventas sin stock**. |
+| No hay stock suficiente. | Por defecto la venta se bloquea. El administrador puede permitirla; en ese caso el faltante aparece en **Ventas sin stock**. |
 | El precio sugerido no es el deseado. | Capture **Precio venta opcional** para fijarlo. |
 | Un producto ya no debe venderse. | Use **Borrar**; si tiene historial, quedará desactivado. |

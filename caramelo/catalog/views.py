@@ -1,4 +1,5 @@
 from functools import wraps
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -21,8 +22,16 @@ from reportlab.pdfgen import canvas
 
 from sales.models import MovimientoInventario
 
-from .forms import AjusteInventarioForm, EntradaCompraForm, ProductoAltaForm, ProductoRapidoForm
-from .models import GrupoProducto, SubgrupoProducto, Producto
+from .forms import (
+    AjusteInventarioForm,
+    CompraForm,
+    CompraItemFormSet,
+    EntradaCompraForm,
+    ProductoAltaForm,
+    ProductoRapidoForm,
+    ProveedorForm,
+)
+from .models import Compra, CompraItem, GrupoProducto, Proveedor, SubgrupoProducto, Producto
 
 
 def user_is_admin(user):
@@ -180,6 +189,7 @@ def inventario(request):
     if q:
         productos_qs = productos_qs.filter(
             Q(nombre__icontains=q)
+            | Q(marca__icontains=q)
             | Q(sku__icontains=q)
             | Q(barcode__icontains=q)
             | Q(grupo__nombre__icontains=q)
@@ -295,6 +305,8 @@ def entrada_compra(request):
             producto = form.cleaned_data["producto"]
             producto.costo_compra = form.cleaned_data["costo_compra"]
             producto.unidades_compra = form.cleaned_data["unidades_compra"]
+            if form.cleaned_data.get("factor_conversion"):
+                producto.factor_conversion_compra = form.cleaned_data["factor_conversion"]
             producto.ieps_porcentaje = form.cleaned_data["ieps_porcentaje"]
             producto.iva_porcentaje = form.cleaned_data["iva_porcentaje"]
             producto.margen_porcentaje = form.cleaned_data["margen_porcentaje"]
@@ -318,6 +330,142 @@ def entrada_compra(request):
         form = EntradaCompraForm()
 
     return render(request, "catalog/entrada_compra.html", {"form": form})
+
+
+@require_admin
+def proveedores(request):
+    q = (request.GET.get("q") or "").strip()
+    queryset = Proveedor.objects.order_by("nombre")
+    if q:
+        queryset = queryset.filter(
+            Q(nombre__icontains=q) | Q(rfc__icontains=q) | Q(contacto__icontains=q)
+        )
+    return render(request, "catalog/proveedores.html", {"proveedores": queryset, "q": q})
+
+
+@require_admin
+def proveedor_nuevo(request):
+    if request.method == "POST":
+        form = ProveedorForm(request.POST)
+        if form.is_valid():
+            proveedor = form.save()
+            messages.success(request, f"Proveedor creado: {proveedor.nombre}.")
+            return redirect("catalog_proveedores")
+    else:
+        form = ProveedorForm()
+    return render(request, "catalog/proveedor_form.html", {"form": form, "titulo": "Nuevo proveedor"})
+
+
+@require_admin
+def proveedor_editar(request, proveedor_id):
+    proveedor = get_object_or_404(Proveedor, id=proveedor_id)
+    if request.method == "POST":
+        form = ProveedorForm(request.POST, instance=proveedor)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Proveedor actualizado.")
+            return redirect("catalog_proveedores")
+    else:
+        form = ProveedorForm(instance=proveedor)
+    return render(request, "catalog/proveedor_form.html", {"form": form, "titulo": "Editar proveedor"})
+
+
+@require_admin
+def compras(request):
+    queryset = Compra.objects.select_related("proveedor", "usuario").prefetch_related("items")
+    return render(request, "catalog/compras.html", {"compras": queryset[:200]})
+
+
+@require_admin
+@transaction.atomic
+def compra_nueva(request):
+    compra = Compra(usuario=request.user)
+    if request.method == "POST":
+        form = CompraForm(request.POST, instance=compra)
+        formset = CompraItemFormSet(request.POST, instance=compra, prefix="items")
+        if form.is_valid() and formset.is_valid():
+            compra = form.save(commit=False)
+            compra.usuario = request.user
+            compra.total = Decimal("0.00")
+            compra.save()
+
+            total = Decimal("0.00")
+            for partida_form in formset.forms:
+                if not partida_form.cleaned_data or partida_form.cleaned_data.get("DELETE"):
+                    continue
+                producto_id = partida_form.cleaned_data["producto"].id
+                producto = Producto.objects.select_for_update().get(id=producto_id)
+                presentaciones = partida_form.cleaned_data["cantidad_presentaciones"]
+                factor = partida_form.cleaned_data["factor_conversion"]
+                costo_total = partida_form.cleaned_data["costo_total"]
+                unidades = (presentaciones * factor).quantize(Decimal("0.001"))
+                costo_unitario = (costo_total / unidades).quantize(Decimal("0.01"))
+                stock_anterior = producto.stock_actual
+                stock_nuevo = stock_anterior
+                existencia_costeable = max(stock_anterior, Decimal("0.000"))
+                if producto.controla_inventario and existencia_costeable + unidades > 0:
+                    valor_anterior = existencia_costeable * producto.costo
+                    costo_promedio = ((valor_anterior + costo_total) / (existencia_costeable + unidades)).quantize(Decimal("0.01"))
+                else:
+                    costo_promedio = costo_unitario
+                if producto.controla_inventario:
+                    stock_nuevo = stock_anterior + unidades
+
+                CompraItem.objects.create(
+                    compra=compra,
+                    producto=producto,
+                    cantidad_presentaciones=presentaciones,
+                    factor_conversion=factor,
+                    cantidad_unidades=unidades,
+                    costo_total=costo_total,
+                    costo_unitario=costo_unitario,
+                    costo_promedio_resultante=costo_promedio,
+                    stock_anterior=stock_anterior,
+                    stock_nuevo=stock_nuevo,
+                )
+
+                producto.costo_compra = costo_total
+                producto.unidades_compra = unidades
+                producto.factor_conversion_compra = factor
+                producto.stock_actual = stock_nuevo
+                producto.calcular_precio()
+                # El precio sugerido usa el costo de la compra reciente; para utilidad
+                # e inventario conservamos en `costo` el promedio ponderado.
+                producto.costo = costo_promedio
+                producto.save()
+
+                if producto.controla_inventario:
+                    referencia = (compra.documento or compra.folio)[:60]
+                    MovimientoInventario.objects.create(
+                        producto=producto,
+                        tipo="ENTRADA",
+                        cantidad=unidades,
+                        referencia=referencia,
+                        usuario=request.user,
+                    )
+                total += costo_total
+
+            compra.total = total.quantize(Decimal("0.01"))
+            compra.save(update_fields=["total"])
+            messages.success(request, f"Compra {compra.folio} recibida; inventario y costos actualizados.")
+            return redirect("catalog_compra_detalle", compra_id=compra.id)
+    else:
+        form = CompraForm(instance=compra)
+        formset = CompraItemFormSet(instance=compra, prefix="items")
+    factores = {
+        str(producto.id): str(producto.factor_conversion_compra or 1)
+        for producto in Producto.objects.filter(activo=True).only("id", "factor_conversion_compra")
+    }
+    return render(request, "catalog/compra_nueva.html", {"form": form, "formset": formset, "factores": factores})
+
+
+@require_admin
+def compra_detalle(request, compra_id):
+    compra = get_object_or_404(
+        Compra.objects.select_related("proveedor", "usuario").prefetch_related("items__producto"),
+        id=compra_id,
+    )
+    return render(request, "catalog/compra_detalle.html", {"compra": compra})
 
 
 @require_admin

@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Max
 from django.contrib.auth import get_user_model
 from catalog.models import Producto
 
@@ -33,6 +34,8 @@ class Venta(models.Model):
         ("TARJETA", "Tarjeta"),
         ("TRANSFER", "Transferencia"),
     ]
+    ESTATUS = [("ACTIVA", "Activa"), ("CANCELADA", "Cancelada")]
+
     folio = models.BigIntegerField(unique=True)
     fecha = models.DateTimeField(auto_now_add=True)
     metodo_pago = models.CharField(max_length=20, choices=METODOS)
@@ -41,7 +44,12 @@ class Venta(models.Model):
     total_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     retencion_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    estatus = models.CharField(max_length=20, default="ACTIVA")  # fase 2: CANCELADA
+    efectivo_recibido = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cambio = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    estatus = models.CharField(max_length=20, choices=ESTATUS, default="ACTIVA")
+    cancelada_en = models.DateTimeField(blank=True, null=True)
+    motivo_cancelacion = models.CharField(max_length=180, blank=True, default="")
+    cancelada_por = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name="ventas_canceladas")
     usuario = models.ForeignKey(User, on_delete=models.PROTECT)
     turno = models.ForeignKey("CajaTurno", on_delete=models.PROTECT, related_name="ventas", null=True, blank=True)
     cliente_fiscal = models.ForeignKey(ClienteFiscal, on_delete=models.PROTECT, null=True, blank=True, related_name="ventas")
@@ -61,6 +69,19 @@ class VentaItem(models.Model):
     ieps_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     iva_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+    costo_unitario = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+
+class FolioVenta(models.Model):
+    ultimo = models.BigIntegerField(default=0)
+
+    @classmethod
+    def siguiente(cls):
+        secuencia, _ = cls.objects.select_for_update().get_or_create(pk=1)
+        ultimo_registrado = Venta.objects.aggregate(maximo=Max("folio"))["maximo"] or 0
+        secuencia.ultimo = max(secuencia.ultimo, ultimo_registrado) + 1
+        secuencia.save(update_fields=["ultimo"])
+        return secuencia.ultimo
 
 class MovimientoInventario(models.Model):
     TIPOS = [

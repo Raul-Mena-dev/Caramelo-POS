@@ -14,7 +14,7 @@ class VentaItemInline(admin.TabularInline):
 
 @admin.register(Venta)
 class VentaAdmin(admin.ModelAdmin):
-    list_display = ("folio", "fecha", "metodo_pago", "subtotal_base", "total_ieps", "total_iva", "retencion_isr", "total", "estatus", "usuario")
+    list_display = ("folio", "fecha", "metodo_pago", "total", "efectivo_recibido", "cambio", "estatus", "usuario")
     list_filter = ("metodo_pago", "estatus")
     inlines = [VentaItemInline]
 

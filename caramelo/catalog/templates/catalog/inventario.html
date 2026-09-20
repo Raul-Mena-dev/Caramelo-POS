@@ -5,26 +5,34 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">Inventario</h4>
   <div class="d-flex gap-2">
+    <a class="btn btn-outline-info" href="{% url 'inventario_valorizado' %}">Valorización</a>
     <a class="btn btn-outline-secondary" href="{% url 'catalog_ajuste_inventario' %}">Ajuste</a>
-    <a class="btn btn-outline-primary" href="{% url 'catalog_entrada_compra' %}">Entrada de compra</a>
+    <a class="btn btn-outline-secondary" href="{% url 'catalog_proveedores' %}">Proveedores</a>
+    <a class="btn btn-outline-primary" href="{% url 'catalog_compra_nueva' %}">Nueva compra</a>
     <a class="btn btn-outline-success" href="{% url 'catalog_producto_rapido' %}?next={% url 'catalog_inventario' %}">Alta rápida</a>
     <a class="btn btn-primary" href="{% url 'catalog_producto_alta' %}">Nuevo producto</a>
   </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
+<form id="form-inventario-busqueda" method="get" class="row g-2 mb-3">
   <div class="col-md-8">
     <input
+      id="inventario-buscar"
       name="q"
       value="{{ q }}"
+      autofocus
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
       class="form-control"
-      placeholder="Buscar por producto, grupo o subgrupo">
+      placeholder="Escanea código o busca producto, marca, grupo o subgrupo">
   </div>
   <div class="col-md-4 d-flex gap-2">
     <button class="btn btn-outline-primary w-100">Buscar</button>
     <a class="btn btn-outline-secondary w-100" href="{% url 'catalog_inventario' %}">Limpiar</a>
   </div>
 </form>
+<div class="form-text mb-3">Puedes escanear un código para localizar inmediatamente el producto en inventario.</div>
 
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a class="btn btn-sm {% if not filtro %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'catalog_inventario' %}{% if q %}?q={{ q }}{% endif %}">Todos</a>
@@ -42,6 +50,7 @@
         <thead>
           <tr>
             <th>Producto</th>
+            <th>Código</th>
             <th>SKU</th>
             <th>Unidad</th>
             <th class="text-end">Stock</th>
@@ -55,6 +64,7 @@
           {% for p in productos_sin_grupo %}
             <tr>
               <td>{{ p.nombre }}</td>
+              <td><code>{{ p.barcode|default:"—" }}</code></td>
               <td>{{ p.sku }}</td>
               <td>{{ p.get_unidad_venta_display }}</td>
               <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
@@ -89,6 +99,7 @@
             <thead>
               <tr>
                 <th>Producto</th>
+                <th>Código</th>
                 <th>SKU</th>
                 <th>Unidad</th>
                 <th class="text-end">Stock</th>
@@ -102,6 +113,7 @@
               {% for p in item.productos_sin_sub %}
                 <tr>
                   <td>{{ p.nombre }}</td>
+                  <td><code>{{ p.barcode|default:"—" }}</code></td>
                   <td>{{ p.sku }}</td>
                   <td>{{ p.get_unidad_venta_display }}</td>
                   <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
@@ -126,6 +138,7 @@
             <thead>
               <tr>
                 <th>Producto</th>
+                <th>Código</th>
                 <th>SKU</th>
                 <th>Unidad</th>
                 <th class="text-end">Stock</th>
@@ -139,6 +152,7 @@
               {% for p in sub.productos %}
                 <tr>
                   <td>{{ p.nombre }}</td>
+                  <td><code>{{ p.barcode|default:"—" }}</code></td>
                   <td>{{ p.sku }}</td>
                   <td>{{ p.get_unidad_venta_display }}</td>
                   <td class="text-end {% if p.stock_minimo > 0 and p.stock_actual <= p.stock_minimo %}text-danger fw-bold{% endif %}">{{ p.stock_actual }}</td>
@@ -152,7 +166,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="8" class="text-center text-muted">Sin productos</td>
+                  <td colspan="9" class="text-center text-muted">Sin productos</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -164,4 +178,19 @@
 {% empty %}
   <div class="alert alert-info">Aun no hay grupos ni productos.</div>
 {% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const input = document.getElementById("inventario-buscar");
+    const form = document.getElementById("form-inventario-busqueda");
+    input?.addEventListener("keydown", function (ev) {
+      if (ev.key === "Tab" && input.value.trim()) {
+        ev.preventDefault();
+        form?.requestSubmit();
+      }
+    });
+  })();
+</script>
 {% endblock %}

@@ -3,11 +3,13 @@ from datetime import datetime, time
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Count
-from django.http import HttpResponse
+from django.db.models import Count, DecimalField, F, Sum
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.utils import timezone
+from core.models import ConfiguracionNegocio
+from catalog.models import Producto
 from sales.models import CajaTurno, Venta, VentaItem, VentaSinStock
 
 
@@ -62,14 +64,21 @@ def _build_corte(inicio, fin):
         producto__no_contabilizable=False,
     )
 
+    costo_output = DecimalField(max_digits=18, decimal_places=2)
     totales = items_contables.aggregate(
         total=Sum("subtotal"),
         tickets=Count("venta", distinct=True),
         subtotal_base=Sum("base_total"),
         total_ieps=Sum("ieps_total"),
         total_iva=Sum("iva_total"),
+        costo=Sum(F("costo_unitario") * F("cantidad"), output_field=costo_output),
     )
     total_val = totales["total"] or Decimal("0.00")
+    costo_val = totales["costo"] or Decimal("0.00")
+    utilidad = (total_val - costo_val).quantize(Decimal("0.01"))
+    totales["costo"] = costo_val.quantize(Decimal("0.01"))
+    totales["utilidad"] = utilidad
+    totales["margen"] = ((utilidad / total_val) * Decimal("100")).quantize(Decimal("0.01")) if total_val else Decimal("0.00")
     tickets_val = totales["tickets"] or 0
     promedio = (total_val / tickets_val) if tickets_val else Decimal("0.00")
 
@@ -82,9 +91,17 @@ def _build_corte(inicio, fin):
     top = list(
         items_contables
         .values("producto__nombre")
-        .annotate(cantidad=Sum("cantidad"), dinero=Sum("subtotal"))
-        .order_by("-cantidad")[:10]
+        .annotate(
+            unidades_vendidas=Sum("cantidad"),
+            dinero=Sum("subtotal"),
+            costo=Sum(F("costo_unitario") * F("cantidad"), output_field=DecimalField(max_digits=18, decimal_places=2)),
+        )
+        .order_by("-unidades_vendidas")[:10]
     )
+    for row in top:
+        row["cantidad"] = row["unidades_vendidas"]
+        row["costo"] = row["costo"] or Decimal("0.00")
+        row["utilidad"] = (row["dinero"] - row["costo"]).quantize(Decimal("0.01"))
 
     return ventas, totales, promedio, por_metodo, top
 
@@ -149,11 +166,15 @@ def corte_diario_csv(request):
         "ieps",
         "iva",
         "subtotal",
+        "costo",
+        "utilidad",
         "retencion_isr_venta",
         "total_venta",
     ])
     for item in items:
         cliente = item.venta.cliente_fiscal
+        costo_total = (item.costo_unitario * item.cantidad).quantize(Decimal("0.01"))
+        utilidad = (item.subtotal - costo_total).quantize(Decimal("0.01"))
         writer.writerow([
             timezone.localtime(item.venta.fecha).strftime("%Y-%m-%d %H:%M"),
             item.venta.folio,
@@ -166,6 +187,8 @@ def corte_diario_csv(request):
             item.ieps_total,
             item.iva_total,
             item.subtotal,
+            costo_total,
+            utilidad,
             item.venta.retencion_isr,
             item.venta.total,
         ])
@@ -235,7 +258,7 @@ def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top
 
     y = height - 50
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "Caramelo - Corte de ventas")
+    c.drawString(50, y, f"{ConfiguracionNegocio.cargar().nombre_comercial} - Corte de ventas")
     y -= 22
 
     c.setFont("Helvetica", 11)
@@ -252,6 +275,9 @@ def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top
     y -= 16
     c.drawString(50, y, f"Ticket promedio: ${round(promedio, 2)}")
     y -= 22
+
+    c.drawString(50, y, f"Costo: ${totales.get('costo') or 0}  Utilidad: ${totales.get('utilidad') or 0}  Margen: {totales.get('margen') or 0}%")
+    y -= 18
 
     c.setFont("Helvetica", 10)
     c.drawString(50, y, f"Base: ${totales.get('subtotal_base') or 0}  IEPS: ${totales.get('total_ieps') or 0}  IVA: ${totales.get('total_iva') or 0}")
@@ -301,6 +327,66 @@ def render_pdf_corte(*, start_date, end_date, totales, promedio, por_metodo, top
     c.showPage()
     c.save()
     return resp
+
+
+def _inventario_valorizado():
+    filas = []
+    costo_total = Decimal("0.00")
+    venta_total = Decimal("0.00")
+    for producto in Producto.objects.filter(activo=True, controla_inventario=True).select_related("grupo").order_by("nombre"):
+        stock = max(producto.stock_actual, Decimal("0.000"))
+        valor_costo = (stock * producto.costo).quantize(Decimal("0.01"))
+        valor_venta = (stock * producto.precio_con_iva).quantize(Decimal("0.01"))
+        utilidad = (valor_venta - valor_costo).quantize(Decimal("0.01"))
+        costo_total += valor_costo
+        venta_total += valor_venta
+        filas.append({
+            "producto": producto,
+            "stock": stock,
+            "valor_costo": valor_costo,
+            "valor_venta": valor_venta,
+            "utilidad": utilidad,
+        })
+    return filas, {
+        "productos": len(filas),
+        "costo": costo_total.quantize(Decimal("0.01")),
+        "venta": venta_total.quantize(Decimal("0.01")),
+        "utilidad": (venta_total - costo_total).quantize(Decimal("0.01")),
+    }
+
+
+@login_required
+def inventario_valorizado(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name="Administradores").exists()):
+        return HttpResponseForbidden("No autorizado.")
+    filas, totales = _inventario_valorizado()
+    return render(request, "reports/inventario_valorizado.html", {"filas": filas, "totales": totales})
+
+
+@login_required
+def inventario_valorizado_csv(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name="Administradores").exists()):
+        return HttpResponseForbidden("No autorizado.")
+    filas, _totales = _inventario_valorizado()
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="inventario_valorizado.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(["producto", "categoria", "stock", "unidad", "costo_unitario", "precio_venta", "valor_costo", "valor_venta", "utilidad_potencial"])
+    for fila in filas:
+        producto = fila["producto"]
+        writer.writerow([
+            producto.nombre,
+            producto.grupo.nombre if producto.grupo else "",
+            fila["stock"],
+            producto.get_unidad_venta_display(),
+            producto.costo,
+            producto.precio_con_iva,
+            fila["valor_costo"],
+            fila["valor_venta"],
+            fila["utilidad"],
+        ])
+    return response
 
 @login_required
 def corte_turno(request, turno_id: int):
@@ -362,7 +448,7 @@ def corte_turno_pdf(request, turno_id: int):
     y = height - 50
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "Caramelo - Corte por turno")
+    c.drawString(50, y, f"{ConfiguracionNegocio.cargar().nombre_comercial} - Corte por turno")
     y -= 20
 
     c.setFont("Helvetica", 11)

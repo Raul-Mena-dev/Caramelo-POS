@@ -9,11 +9,11 @@ from django.urls import reverse
 from django.contrib import messages
 
 from catalog.models import Producto
-from sales.models import ClienteFiscal, Venta, VentaItem, MovimientoInventario, VentaSinStock
+from core.models import ConfiguracionNegocio
+from sales.models import ClienteFiscal, FolioVenta, Venta, VentaItem, MovimientoInventario, VentaSinStock
 from sales.models import CajaTurno
 
 MONEY = Decimal("0.01")
-RETENCION_PERSONA_MORAL = Decimal("0.0125")
 
 def _get_cart(session):
     return session.setdefault("cart", {})  # {producto_id: "cantidad"}
@@ -41,6 +41,7 @@ def _item_snapshot(producto, cantidad):
         "ieps_total": ieps_total,
         "iva_total": iva_total,
         "subtotal": subtotal,
+        "costo_unitario": producto.costo,
     }
 
 def _cart_total(cart):
@@ -104,6 +105,7 @@ def pos_home(request):
         "turno": _get_turno_abierto(request.user),
         "clientes_fiscales": ClienteFiscal.objects.filter(activo=True).order_by("razon_social"),
         "ultima_venta": Venta.objects.filter(usuario=request.user).order_by("-fecha").first(),
+        "puede_cancelar": request.user.is_superuser or request.user.groups.filter(name="Administradores").exists(),
     })
     
 @login_required
@@ -119,6 +121,9 @@ def pos_add_item(request):
         return redirect("pos_home")
 
     p = get_object_or_404(Producto, id=int(pid), activo=True)
+    if not p.permite_decimales and qty != qty.to_integral_value():
+        messages.error(request, f"{p.nombre} solo admite cantidades enteras.")
+        return redirect("pos_home")
     cart = _get_cart(request.session)
     current = _decimal(cart.get(str(p.id), "0"))
     new_qty = current + qty
@@ -151,27 +156,69 @@ def pos_checkout(request):
         return HttpResponseBadRequest("No hay turno abierto. Abre caja primero.")
 
     metodo = request.POST.get("metodo_pago", "EFECTIVO")
+    metodos_validos = {value for value, _label in Venta.METODOS}
+    if metodo not in metodos_validos:
+        return HttpResponseBadRequest("Metodo de pago invalido")
     cliente_id = request.POST.get("cliente_fiscal_id") or None
     cliente = None
     if cliente_id:
         cliente = get_object_or_404(ClienteFiscal, id=int(cliente_id), activo=True)
 
     cart = _get_cart(request.session)
-    total_bruto, items = _cart_total(cart)
+    try:
+        producto_ids = [int(pid) for pid in cart]
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("Carrito invalido")
+    productos = {
+        producto.id: producto
+        for producto in Producto.objects.select_for_update().filter(id__in=producto_ids, activo=True)
+    }
+    items = []
+    total_bruto = Decimal("0.00")
+    for pid, qty_str in cart.items():
+        producto = productos.get(int(pid))
+        cantidad = _decimal(qty_str)
+        if not producto or cantidad <= 0:
+            continue
+        if not producto.permite_decimales and cantidad != cantidad.to_integral_value():
+            messages.error(request, f"{producto.nombre} solo admite cantidades enteras.")
+            return redirect("pos_home")
+        item = _item_snapshot(producto, cantidad)
+        items.append(item)
+        total_bruto += item["subtotal"]
+    total_bruto = total_bruto.quantize(MONEY)
     if not items:
         return HttpResponseBadRequest("Carrito vacío")
+
+    config = ConfiguracionNegocio.cargar()
+    faltantes_bloqueados = [
+        it for it in items
+        if it["producto"].controla_inventario and it["producto"].stock_actual < it["cantidad"]
+    ]
+    if faltantes_bloqueados and not config.permitir_venta_sin_stock:
+        nombres = ", ".join(it["producto"].nombre for it in faltantes_bloqueados[:3])
+        messages.error(request, f"Stock insuficiente: {nombres}.")
+        return redirect("pos_home")
 
     subtotal_base = sum((it["base_total"] for it in items), Decimal("0.00")).quantize(MONEY)
     total_ieps = sum((it["ieps_total"] for it in items), Decimal("0.00")).quantize(MONEY)
     total_iva = sum((it["iva_total"] for it in items), Decimal("0.00")).quantize(MONEY)
     retencion_isr = Decimal("0.00")
-    if cliente and cliente.tipo_persona == "MORAL":
-        retencion_isr = (subtotal_base * RETENCION_PERSONA_MORAL).quantize(MONEY)
+    if cliente and cliente.tipo_persona == "MORAL" and config.aplicar_retencion_persona_moral:
+        tasa_retencion = Decimal(config.retencion_persona_moral) / Decimal("100")
+        retencion_isr = (subtotal_base * tasa_retencion).quantize(MONEY)
     total = (total_bruto - retencion_isr).quantize(MONEY)
 
-    # Folio simple (secuencial): max + 1
-    last = Venta.objects.order_by("-folio").first()
-    folio = (last.folio + 1) if last else 1
+    efectivo_recibido = Decimal("0.00")
+    cambio = Decimal("0.00")
+    if metodo == "EFECTIVO":
+        efectivo_recibido = _decimal(request.POST.get("efectivo_recibido"), str(total)).quantize(MONEY)
+        if efectivo_recibido < total:
+            messages.error(request, "El efectivo recibido no alcanza para cubrir el total.")
+            return redirect("pos_home")
+        cambio = (efectivo_recibido - total).quantize(MONEY)
+
+    folio = FolioVenta.siguiente()
 
     venta = Venta.objects.create(
         folio=folio,
@@ -181,6 +228,8 @@ def pos_checkout(request):
         total_iva=total_iva,
         retencion_isr=retencion_isr,
         total=total,
+        efectivo_recibido=efectivo_recibido,
+        cambio=cambio,
         usuario=request.user,
         turno=turno,
         cliente_fiscal=cliente,
@@ -203,7 +252,11 @@ def pos_checkout(request):
             ieps_total=it["ieps_total"],
             iva_total=it["iva_total"],
             subtotal=it["subtotal"],
+            costo_unitario=it["costo_unitario"],
         )
+
+        if not p.controla_inventario:
+            continue
 
         disponible = p.stock_actual
         cantidad_a_descontar = min(disponible, qty)
@@ -247,6 +300,9 @@ def pos_checkout(request):
 @login_required
 def ticket_pdf(request, venta_id: int):
     venta = get_object_or_404(Venta, id=venta_id)
+    es_admin = request.user.is_superuser or request.user.groups.filter(name="Administradores").exists()
+    if venta.usuario_id != request.user.id and not es_admin:
+        return HttpResponse(status=403)
     # PDF 80mm usando reportlab
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
@@ -268,7 +324,12 @@ def ticket_pdf(request, venta_id: int):
         y -= dy
 
     # Header
-    line("Caramelo", size=14, dy=8*mm)
+    config = ConfiguracionNegocio.cargar()
+    line(config.nombre_comercial, size=14, dy=8*mm)
+    if config.rfc:
+        line(f"RFC: {config.rfc}", size=8, dy=5*mm)
+    if config.domicilio:
+        line(config.domicilio, size=8, dy=5*mm)
     line(f"Ticket: V{venta.folio}", size=10)
     line(f"Fecha: {timezone.localtime(venta.fecha).strftime('%Y-%m-%d %H:%M')}", size=9)
     if venta.cliente_fiscal:
@@ -280,7 +341,7 @@ def ticket_pdf(request, venta_id: int):
     for it in venta.items.select_related("producto").all():
         nombre = it.producto.nombre
         line(nombre, size=9, dy=5*mm)
-        unidad = "kg" if it.producto.unidad_venta == "KG" else "u"
+        unidad = it.producto.abreviatura_unidad
         line(f"{it.cantidad} {unidad} x ${it.precio_unitario_con_iva} = ${it.subtotal}", size=9, dy=5*mm)
         line(f"Base ${it.base_total} IEPS ${it.ieps_total} IVA ${it.iva_total}", size=7, dy=5*mm)
 
@@ -292,11 +353,66 @@ def ticket_pdf(request, venta_id: int):
         line(f"RET ISR: -${venta.retencion_isr}", size=9, dy=5*mm)
     line(f"TOTAL: ${venta.total}", size=12, dy=8*mm)
     line(f"PAGO: {venta.metodo_pago}", size=10)
-    line("Gracias por su compra", size=10, dy=8*mm)
+    if venta.metodo_pago == "EFECTIVO":
+        line(f"RECIBIDO: ${venta.efectivo_recibido}", size=9, dy=5*mm)
+        line(f"CAMBIO: ${venta.cambio}", size=9, dy=5*mm)
+    if venta.estatus == "CANCELADA":
+        line("*** VENTA CANCELADA ***", size=10, dy=6*mm)
+    line(config.mensaje_ticket, size=10, dy=8*mm)
 
     c.showPage()
     c.save()
     return response
+
+
+@login_required
+@transaction.atomic
+def venta_cancelar(request, venta_id: int):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+    es_admin = request.user.is_superuser or request.user.groups.filter(name="Administradores").exists()
+    if not es_admin:
+        return HttpResponse(status=403)
+
+    venta = get_object_or_404(Venta.objects.select_for_update(), id=venta_id)
+    if venta.estatus != "ACTIVA":
+        messages.info(request, f"La venta V{venta.folio} ya no esta activa.")
+        return redirect("pos_home")
+
+    motivo = (request.POST.get("motivo") or "Cancelacion autorizada").strip()[:180]
+    productos = {
+        producto.id: producto
+        for producto in Producto.objects.select_for_update().filter(
+            id__in=venta.items.values_list("producto_id", flat=True)
+        )
+    }
+    referencia = f"V{venta.folio}"
+    for item in venta.items.all():
+        producto = productos[item.producto_id]
+        descontado = MovimientoInventario.objects.filter(
+            producto_id=producto.id,
+            tipo="VENTA",
+            referencia=referencia,
+        ).aggregate(total=Sum("cantidad"))["total"] or Decimal("0.000")
+        reintegro = -descontado
+        if reintegro > 0:
+            producto.stock_actual += reintegro
+            producto.save(update_fields=["stock_actual"])
+            MovimientoInventario.objects.create(
+                producto=producto,
+                tipo="CANCELACION",
+                cantidad=reintegro,
+                referencia=referencia,
+                usuario=request.user,
+            )
+
+    venta.estatus = "CANCELADA"
+    venta.cancelada_en = timezone.now()
+    venta.cancelada_por = request.user
+    venta.motivo_cancelacion = motivo
+    venta.save(update_fields=["estatus", "cancelada_en", "cancelada_por", "motivo_cancelacion"])
+    messages.success(request, f"Venta V{venta.folio} cancelada; el inventario fue restituido.")
+    return redirect("pos_home")
 
 def _get_turno_abierto(user):
     return CajaTurno.objects.filter(usuario=user, estatus="ABIERTO").order_by("-apertura").first()
@@ -307,6 +423,7 @@ def turno_home(request):
     return render(request, "pos/turno.html", {"turno": turno})
 
 @login_required
+@transaction.atomic
 def turno_abrir(request):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required")
@@ -316,6 +433,8 @@ def turno_abrir(request):
         return HttpResponseBadRequest("Ya tienes un turno abierto.")
 
     caja = (request.POST.get("caja_nombre") or "CAJA1").strip()[:40]
+    if CajaTurno.objects.select_for_update().filter(caja_nombre__iexact=caja, estatus="ABIERTO").exists():
+        return HttpResponseBadRequest("Esa caja ya tiene un turno abierto.")
     fondo = Decimal((request.POST.get("fondo_inicial") or "0").strip() or "0")
 
     CajaTurno.objects.create(
@@ -327,6 +446,7 @@ def turno_abrir(request):
     return redirect("pos_home")
 
 @login_required
+@transaction.atomic
 def turno_cerrar(request):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required")

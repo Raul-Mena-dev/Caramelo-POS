@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load auth_extras %}
 {% block title %}Corte - {{ start_date }} a {{ end_date }}{% endblock %}
 
 {% block content %}
@@ -8,12 +9,19 @@
     <div class="text-muted">Rango: <b>{{ start_date }}</b> a <b>{{ end_date }}</b></div>
   </div>
   <div class="d-flex gap-2">
+    {% if request.user.is_superuser or request.user|has_group:"Administradores" %}<a class="btn btn-outline-primary" href="{% url 'inventario_valorizado' %}">Inventario valorizado</a>{% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'pos_home' %}">Volver al POS</a>
     <a class="btn btn-outline-danger"
        href="{% url 'ventas_sin_stock' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}">
       Ventas sin stock
     </a>
   </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Costo de lo vendido</div><div class="fs-3 fw-bold">${{ totales.costo|default:"0.00" }}</div></div></div></div>
+  <div class="col-md-4"><div class="card shadow-sm border-success"><div class="card-body"><div class="text-muted">Utilidad bruta estimada</div><div class="fs-3 fw-bold text-success">${{ totales.utilidad|default:"0.00" }}</div></div></div></div>
+  <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Margen sobre venta</div><div class="fs-3 fw-bold">{{ totales.margen|default:"0.00" }}%</div></div></div></div>
 </div>
 
 <!-- Filtros -->
@@ -149,6 +157,8 @@
                 <th>Producto</th>
                 <th class="text-end">Cantidad</th>
                 <th class="text-end">Dinero</th>
+                <th class="text-end">Costo</th>
+                <th class="text-end">Utilidad</th>
               </tr>
             </thead>
             <tbody>
@@ -157,9 +167,11 @@
                 <td>{{ r.producto__nombre }}</td>
                 <td class="text-end">{{ r.cantidad }}</td>
                 <td class="text-end fw-bold">${{ r.dinero }}</td>
+                <td class="text-end">${{ r.costo }}</td>
+                <td class="text-end text-success fw-bold">${{ r.utilidad }}</td>
               </tr>
               {% empty %}
-              <tr><td colspan="3" class="text-center text-muted py-4">Sin ventas</td></tr>
+              <tr><td colspan="5" class="text-center text-muted py-4">Sin ventas</td></tr>
               {% endfor %}
             </tbody>
           </table>

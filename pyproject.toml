@@ -1,0 +1,2 @@
+[tool.vercel.scripts]
+build = "python caramelo/manage.py migrate --noinput && python caramelo/manage.py seed_demo && python caramelo/manage.py collectstatic --noinput"

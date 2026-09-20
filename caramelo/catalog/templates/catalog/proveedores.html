@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Proveedores{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h3 class="mb-0">Proveedores</h3><div class="text-muted">Directorio para compras e historial de costos.</div></div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'catalog_compras' %}">Compras</a>
+    <a class="btn btn-primary" href="{% url 'catalog_proveedor_nuevo' %}">Nuevo proveedor</a>
+  </div>
+</div>
+<form method="get" class="input-group mb-3">
+  <input name="q" value="{{ q }}" class="form-control" placeholder="Nombre, RFC o contacto">
+  <button class="btn btn-outline-primary">Buscar</button>
+</form>
+<div class="card shadow-sm"><div class="table-responsive">
+  <table class="table table-hover mb-0">
+    <thead class="table-light"><tr><th>Proveedor</th><th>RFC</th><th>Contacto</th><th>Teléfono</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for p in proveedores %}
+      <tr><td class="fw-semibold">{{ p.nombre }}</td><td>{{ p.rfc|default:"—" }}</td><td>{{ p.contacto|default:"—" }}</td><td>{{ p.telefono|default:"—" }}</td><td>{% if p.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'catalog_proveedor_editar' p.id %}">Editar</a></td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay proveedores.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

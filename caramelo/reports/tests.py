@@ -37,6 +37,7 @@ class CorteCsvTests(TestCase):
             iva_total=Decimal("1.38"),
             precio_unitario_con_iva=Decimal("10.00"),
             subtotal=Decimal("10.00"),
+            costo_unitario=Decimal("4.00"),
         )
         VentaItem.objects.create(
             venta=venta,
@@ -74,6 +75,7 @@ class CorteCsvTests(TestCase):
             iva_total=Decimal("1.38"),
             precio_unitario_con_iva=Decimal("10.00"),
             subtotal=Decimal("10.00"),
+            costo_unitario=Decimal("4.00"),
         )
 
         today = timezone.localdate().strftime("%Y-%m-%d")
@@ -82,6 +84,27 @@ class CorteCsvTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "TARJETA")
         self.assertContains(response, "$8.62")
+        self.assertContains(response, "Utilidad bruta estimada")
+        self.assertContains(response, "$6.00")
+
+    def test_inventario_valorizado_calcula_costo_venta_y_utilidad(self):
+        self.user.is_superuser = True
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_superuser", "is_staff"])
+        Producto.objects.create(
+            nombre="Lata",
+            costo=Decimal("2.00"),
+            precio_con_iva=Decimal("5.00"),
+            stock_actual=Decimal("3.000"),
+        )
+
+        response = self.client.get(reverse("inventario_valorizado"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Lata")
+        self.assertContains(response, "$6.00")
+        self.assertContains(response, "$15.00")
+        self.assertContains(response, "$9.00")
 
     def test_reporte_ventas_sin_stock_muestra_faltantes(self):
         producto = Producto.objects.create(nombre="Chocolate", precio_con_iva=Decimal("10.00"))

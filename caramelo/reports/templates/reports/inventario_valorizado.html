@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Inventario valorizado{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="mb-0">Inventario valorizado</h3><div class="text-muted">Valor actual del stock según costo y precio de venta.</div></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'corte_diario' %}">Corte de ventas</a><a class="btn btn-outline-primary" href="{% url 'inventario_valorizado_csv' %}">Descargar CSV</a></div></div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Productos</div><div class="fs-3 fw-bold">{{ totales.productos }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Valor a costo</div><div class="fs-3 fw-bold">${{ totales.costo }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Valor a venta</div><div class="fs-3 fw-bold">${{ totales.venta }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm border-success"><div class="card-body"><div class="text-muted">Utilidad potencial</div><div class="fs-3 fw-bold text-success">${{ totales.utilidad }}</div></div></div></div>
+</div>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead class="table-light"><tr><th>Producto</th><th>Categoría</th><th class="text-end">Stock</th><th class="text-end">Costo unit.</th><th class="text-end">Precio</th><th class="text-end">Valor costo</th><th class="text-end">Valor venta</th><th class="text-end">Utilidad potencial</th></tr></thead>
+  <tbody>{% for fila in filas %}<tr><td class="fw-semibold">{{ fila.producto.nombre }}</td><td>{{ fila.producto.grupo.nombre|default:"Sin categoría" }}</td><td class="text-end">{{ fila.stock }} {{ fila.producto.abreviatura_unidad }}</td><td class="text-end">${{ fila.producto.costo }}</td><td class="text-end">${{ fila.producto.precio_con_iva }}</td><td class="text-end">${{ fila.valor_costo }}</td><td class="text-end">${{ fila.valor_venta }}</td><td class="text-end text-success fw-bold">${{ fila.utilidad }}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No hay productos con control de inventario.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

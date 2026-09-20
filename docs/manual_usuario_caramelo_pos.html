@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Manual de Usuario - Caramelo POS</title>
+  <title>Manual de Usuario - POS Comercio</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
@@ -108,11 +108,11 @@
 </head>
 <body>
 <main class="page">
-  <h1>Manual de Usuario - Caramelo POS</h1>
-  <p class="subtitle">Guía de operación para dulcería: caja, productos, inventario, compras, reportes y uso con pistola de códigos.</p>
+  <h1>Manual de Usuario - POS Comercio</h1>
+  <p class="subtitle">Guía de operación para tiendas y comercios: caja, productos, inventario, compras, reportes y uso con lector de códigos.</p>
 
   <div class="box ok">
-    <strong>Objetivo del sistema:</strong> ayudar a vender de forma rápida en mostrador, controlar existencias, registrar compras y obtener cortes de caja e inventario para una dulcería de menudeo.
+    <strong>Objetivo del sistema:</strong> ayudar a vender de forma rápida en mostrador, controlar existencias, registrar compras y obtener cortes de caja e inventario para un comercio de menudeo.
   </div>
 
   <h2>1. Acceso al Sistema</h2>
@@ -179,7 +179,7 @@
   <ol>
     <li>Presione <strong>Alta rápida</strong>.</li>
     <li>El código escaneado aparecerá precargado.</li>
-    <li>Capture nombre, costo total, piezas compradas, margen o precio de venta.</li>
+    <li>Capture nombre, costo total, unidades compradas, margen o precio de venta.</li>
     <li>Guarde el producto y regrese a caja.</li>
   </ol>
 
@@ -238,12 +238,12 @@
         <td>Lo que pagó por toda la caja, bolsa, paquete o compra del producto.</td>
       </tr>
       <tr>
-        <td><strong>Piezas compradas</strong></td>
-        <td>Cantidad de piezas que recibió en esa compra. Sirve para calcular costo unitario.</td>
+        <td><strong>Unidades compradas</strong></td>
+        <td>Cantidad de unidades base que recibió en esa compra. Sirve para calcular costo unitario.</td>
       </tr>
       <tr>
         <td><strong>Stock inicial</strong></td>
-        <td>Cantidad disponible para vender. Si se deja vacío, se usa la cantidad de piezas compradas.</td>
+        <td>Cantidad disponible para vender. Si se deja vacío, se usa la cantidad de unidades compradas.</td>
       </tr>
       <tr>
         <td><strong>Stock mínimo</strong></td>
@@ -273,12 +273,12 @@
   </div>
 
   <h2>6. Cálculo de Precio</h2>
-  <p>El sistema está preparado para venta al público general, que es el caso más común en la dulcería.</p>
+  <p>El sistema está preparado para venta al público general, que es el caso más común en tiendas de menudeo.</p>
   <ul>
-    <li>IVA predeterminado: 16%.</li>
-    <li>IEPS predeterminado: 8%, editable por producto.</li>
-    <li>Margen predeterminado: 35%.</li>
-    <li>El precio sugerido se redondea hacia arriba al múltiplo de $0.50.</li>
+    <li>IVA e IEPS predeterminados: configurables desde la administración del negocio.</li>
+    <li>Cada producto puede sobrescribir sus porcentajes de impuestos.</li>
+    <li>Margen predeterminado: configurable por el administrador.</li>
+    <li>Redondeo comercial: configurable desde centavos hasta múltiplos de $1.00.</li>
   </ul>
   <p>Si se captura un precio de venta manual, el sistema lo usa como precio fijo.</p>
 
@@ -300,11 +300,17 @@
     <li>Capture un motivo claro, por ejemplo <code>MERMA</code>, <code>CADUCIDAD</code> o <code>CONTEO</code>.</li>
   </ul>
 
-  <h3>Entrada de compra</h3>
-  <p>Use <strong>Entrada de compra</strong> para registrar nueva mercancía de un producto existente. Esta opción suma stock, actualiza costos y recalcula precio.</p>
+  <h3>Proveedores y compras</h3>
+  <ol>
+    <li>Registre el proveedor desde <strong>Compras → Proveedores</strong>.</li>
+    <li>Abra <strong>Nueva compra</strong> y capture factura, nota u otra referencia.</li>
+    <li>Agregue una o varias partidas indicando presentaciones, unidades por presentación y costo total.</li>
+    <li>Al recibir la compra, el sistema suma inventario, calcula el costo promedio ponderado, recalcula precios y conserva el historial completo.</li>
+  </ol>
+  <p>Ejemplo: <code>3</code> cajas con factor <code>24</code> agregan <code>72</code> piezas al inventario.</p>
 
   <h3>Ventas sin stock suficiente</h3>
-  <p>El sistema permite vender aunque no haya existencia suficiente para no detener la operación de caja.</p>
+  <p>Por defecto el sistema bloquea una venta cuando no hay existencia suficiente. El administrador puede habilitar la venta con faltantes desde Configuración.</p>
   <ul>
     <li>El inventario nunca baja de 0.</li>
     <li>Si se vende más de lo disponible, el faltante se registra automáticamente.</li>
@@ -324,9 +330,9 @@
 
   <h2>9. Clientes Fiscales</h2>
   <p>La mayoría de ventas pueden hacerse a <strong>Público general</strong>.</p>
-  <p>Si un cliente requiere datos fiscales, se puede seleccionar en caja. Para persona moral, el sistema aplica la retención ISR configurada.</p>
+  <p>Si un cliente requiere datos fiscales, se puede seleccionar en caja. La retención para persona moral solo se aplica cuando el administrador habilita esa política fiscal.</p>
   <div class="box">
-    Recomendación: usar clientes fiscales solo cuando el cliente lo solicite. Para ventas normales de dulcería, mantener <strong>Público general</strong>.
+    Recomendación: usar clientes fiscales solo cuando el cliente lo solicite. Para ventas normales de mostrador, mantener <strong>Público general</strong>.
   </div>
 
   <h2>10. Corte de Caja y Reportes</h2>
@@ -346,11 +352,13 @@
     <li>Puede imprimir PDF o descargar CSV.</li>
   </ol>
 
+  <p>El corte muestra costo de lo vendido, utilidad bruta estimada, margen y utilidad por producto. Use <strong>Inventario → Valorización</strong> para consultar valor a costo, valor a venta y utilidad potencial del stock.</p>
+
   <h2>11. Recomendaciones Operativas</h2>
   <ul>
     <li>Abrir turno antes de empezar a vender.</li>
     <li>Usar la pistola para evitar errores de captura.</li>
-    <li>Dar de alta productos con costo total y piezas compradas.</li>
+    <li>Dar de alta productos con costo total y unidades compradas.</li>
     <li>Revisar <strong>Stock bajo</strong> al iniciar o terminar el día.</li>
     <li>Usar ajustes con motivo cuando haya merma o diferencias de conteo.</li>
     <li>Cerrar turno al final del día o cambio de cajero.</li>
@@ -374,8 +382,8 @@
         <td>Verifique que haya turno abierto y que el carrito tenga productos.</td>
       </tr>
       <tr>
-        <td>Se vendió sin stock suficiente.</td>
-        <td>La venta sí se registra, el inventario queda en 0 y el faltante aparece en <strong>Ventas sin stock</strong>.</td>
+        <td>No hay stock suficiente.</td>
+        <td>Por defecto la venta se bloquea. El administrador puede permitirla; en ese caso el faltante aparece en <strong>Ventas sin stock</strong>.</td>
       </tr>
       <tr>
         <td>El precio sugerido no es el deseado.</td>
@@ -389,7 +397,7 @@
   </table>
 
   <div class="footer">
-    Manual de Usuario - Caramelo POS. Documento preparado para operación de dulcería de menudeo.
+    Manual de Usuario - POS Comercio. Documento preparado para operación de comercios de menudeo.
   </div>
 </main>
 </body>

@@ -1,10 +1,13 @@
 from django import forms
+from django.forms import BaseInlineFormSet, inlineformset_factory
 
-from .models import GrupoProducto, SubgrupoProducto, Producto
+from core.models import ConfiguracionNegocio
 
-DEFAULT_MARGEN = 35
-DEFAULT_IEPS = 8
-DEFAULT_IVA = 16
+from .models import Compra, CompraItem, GrupoProducto, Proveedor, SubgrupoProducto, Producto
+
+DEFAULT_MARGEN = 30
+DEFAULT_IEPS = 0
+DEFAULT_IVA = 0
 
 
 class ProductoAltaForm(forms.ModelForm):
@@ -18,6 +21,7 @@ class ProductoAltaForm(forms.ModelForm):
         model = Producto
         fields = [
             "nombre",
+            "marca",
             "sku",
             "barcode",
             "precio_con_iva",
@@ -34,6 +38,9 @@ class ProductoAltaForm(forms.ModelForm):
             "stock_actual",
             "stock_minimo",
             "unidad_venta",
+            "presentacion_compra",
+            "factor_conversion_compra",
+            "controla_inventario",
             "no_contabilizable",
             "activo",
         ]
@@ -53,11 +60,12 @@ class ProductoAltaForm(forms.ModelForm):
         self.fields["unidades_compra"].required = True
         self.fields["stock_actual"].required = False
         self.fields["stock_minimo"].required = False
-        self.fields["ieps_porcentaje"].initial = self.fields["ieps_porcentaje"].initial or DEFAULT_IEPS
-        self.fields["iva_porcentaje"].initial = self.fields["iva_porcentaje"].initial or DEFAULT_IVA
-        self.fields["margen_porcentaje"].initial = self.fields["margen_porcentaje"].initial or DEFAULT_MARGEN
+        config = ConfiguracionNegocio.cargar()
+        self.fields["ieps_porcentaje"].initial = config.ieps_predeterminado
+        self.fields["iva_porcentaje"].initial = config.iva_predeterminado
+        self.fields["margen_porcentaje"].initial = config.margen_predeterminado
         for name, field in self.fields.items():
-            if name in {"activo", "generar_barcode", "generar_qr", "usar_precio_mandatorio", "no_contabilizable"}:
+            if name in {"activo", "generar_barcode", "generar_qr", "usar_precio_mandatorio", "no_contabilizable", "controla_inventario"}:
                 field.widget.attrs.setdefault("class", "form-check-input")
             else:
                 field.widget.attrs.setdefault("class", "form-control")
@@ -74,16 +82,16 @@ class ProductoAltaForm(forms.ModelForm):
         if not cleaned.get("usar_precio_mandatorio") and not precio_capturado and (cleaned.get("unidades_compra") or 0) <= 0:
             self.add_error("unidades_compra", "Las unidades deben ser mayores a cero.")
         unidades_compra = cleaned.get("unidades_compra") or 0
-        if not cleaned.get("stock_actual"):
+        if cleaned.get("stock_actual") is None:
             cleaned["stock_actual"] = unidades_compra
-        if not cleaned.get("stock_minimo"):
+        if cleaned.get("stock_minimo") is None:
             cleaned["stock_minimo"] = 0
-        if not cleaned.get("iva_porcentaje"):
-            cleaned["iva_porcentaje"] = DEFAULT_IVA
+        if cleaned.get("iva_porcentaje") is None:
+            cleaned["iva_porcentaje"] = ConfiguracionNegocio.cargar().iva_predeterminado
         if cleaned.get("ieps_porcentaje") is None:
-            cleaned["ieps_porcentaje"] = DEFAULT_IEPS
-        if not cleaned.get("margen_porcentaje"):
-            cleaned["margen_porcentaje"] = DEFAULT_MARGEN
+            cleaned["ieps_porcentaje"] = ConfiguracionNegocio.cargar().ieps_predeterminado
+        if cleaned.get("margen_porcentaje") is None:
+            cleaned["margen_porcentaje"] = ConfiguracionNegocio.cargar().margen_predeterminado
         if precio_capturado:
             cleaned["precio_mandatorio"] = precio_capturado
             cleaned["usar_precio_mandatorio"] = True
@@ -117,9 +125,11 @@ class ProductoAltaForm(forms.ModelForm):
 
 class EntradaCompraForm(forms.Form):
     producto = forms.ModelChoiceField(queryset=Producto.objects.filter(activo=True).order_by("nombre"))
-    cantidad = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, label="Cantidad a sumar")
+    cantidad = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, required=False, label="Unidades a sumar")
+    cantidad_presentaciones = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, required=False, label="Presentaciones compradas")
+    factor_conversion = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, required=False, label="Unidades por presentacion")
     costo_compra = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0, label="Costo total de compra")
-    unidades_compra = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, label="Unidades compradas")
+    unidades_compra = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, required=False, label="Unidades para calcular costo")
     ieps_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, initial=DEFAULT_IEPS, label="IEPS %")
     iva_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, initial=DEFAULT_IVA, label="IVA %")
     margen_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, initial=0, label="Margen %")
@@ -129,6 +139,10 @@ class EntradaCompraForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        config = ConfiguracionNegocio.cargar()
+        self.fields["ieps_porcentaje"].initial = config.ieps_predeterminado
+        self.fields["iva_porcentaje"].initial = config.iva_predeterminado
+        self.fields["margen_porcentaje"].initial = config.margen_predeterminado
         for name, field in self.fields.items():
             if name == "usar_precio_mandatorio":
                 field.widget.attrs.setdefault("class", "form-check-input")
@@ -137,6 +151,17 @@ class EntradaCompraForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        presentaciones = cleaned.get("cantidad_presentaciones")
+        factor = cleaned.get("factor_conversion")
+        if presentaciones is not None:
+            producto = cleaned.get("producto")
+            factor = factor or (producto.factor_conversion_compra if producto else 1) or 1
+            cleaned["factor_conversion"] = factor
+            cleaned["cantidad"] = presentaciones * factor
+        elif cleaned.get("cantidad") is None:
+            self.add_error("cantidad", "Captura las unidades a sumar o las presentaciones compradas.")
+        if cleaned.get("unidades_compra") is None and cleaned.get("cantidad") is not None:
+            cleaned["unidades_compra"] = cleaned["cantidad"]
         if cleaned.get("usar_precio_mandatorio") and not cleaned.get("precio_mandatorio"):
             self.add_error("precio_mandatorio", "Captura el precio mandatorio.")
         return cleaned
@@ -145,14 +170,17 @@ class EntradaCompraForm(forms.Form):
 class ProductoRapidoForm(forms.ModelForm):
     grupo_nombre = forms.CharField(required=False, label="Grupo")
     costo_compra = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0, label="Costo total de compra")
-    unidades_compra = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, label="Piezas compradas")
+    unidades_compra = forms.DecimalField(max_digits=12, decimal_places=3, min_value=0.001, label="Unidades compradas")
     margen_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, initial=DEFAULT_MARGEN, label="Margen %")
+    ieps_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, required=False, label="IEPS %")
+    iva_porcentaje = forms.DecimalField(max_digits=5, decimal_places=2, min_value=0, required=False, label="IVA %")
 
     class Meta:
         model = Producto
         fields = [
             "barcode",
             "nombre",
+            "marca",
             "precio_con_iva",
             "costo_compra",
             "unidades_compra",
@@ -160,6 +188,8 @@ class ProductoRapidoForm(forms.ModelForm):
             "stock_actual",
             "stock_minimo",
             "unidad_venta",
+            "ieps_porcentaje",
+            "iva_porcentaje",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -167,6 +197,10 @@ class ProductoRapidoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if barcode:
             self.fields["barcode"].initial = barcode
+        config = ConfiguracionNegocio.cargar()
+        self.fields["margen_porcentaje"].initial = config.margen_predeterminado
+        self.fields["ieps_porcentaje"].initial = config.ieps_predeterminado
+        self.fields["iva_porcentaje"].initial = config.iva_predeterminado
         self.fields["precio_con_iva"].required = False
         self.fields["stock_actual"].required = False
         self.fields["stock_minimo"].required = False
@@ -175,11 +209,16 @@ class ProductoRapidoForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        config = ConfiguracionNegocio.cargar()
         cleaned["grupo_nombre"] = (cleaned.get("grupo_nombre") or "").strip()
-        if not cleaned.get("stock_actual"):
+        if cleaned.get("stock_actual") is None:
             cleaned["stock_actual"] = cleaned.get("unidades_compra") or 0
-        if not cleaned.get("stock_minimo"):
+        if cleaned.get("stock_minimo") is None:
             cleaned["stock_minimo"] = 0
+        if cleaned.get("ieps_porcentaje") is None:
+            cleaned["ieps_porcentaje"] = config.ieps_predeterminado
+        if cleaned.get("iva_porcentaje") is None:
+            cleaned["iva_porcentaje"] = config.iva_predeterminado
         return cleaned
 
     def save(self, commit=True):
@@ -189,8 +228,8 @@ class ProductoRapidoForm(forms.ModelForm):
         producto.margen_porcentaje = self.cleaned_data["margen_porcentaje"]
         producto.stock_actual = self.cleaned_data["stock_actual"]
         producto.stock_minimo = self.cleaned_data["stock_minimo"]
-        producto.iva_porcentaje = DEFAULT_IVA
-        producto.ieps_porcentaje = DEFAULT_IEPS
+        producto.iva_porcentaje = self.cleaned_data["iva_porcentaje"]
+        producto.ieps_porcentaje = self.cleaned_data["ieps_porcentaje"]
         if self.cleaned_data.get("precio_con_iva"):
             producto.precio_mandatorio = self.cleaned_data["precio_con_iva"]
             producto.usar_precio_mandatorio = True
@@ -215,3 +254,79 @@ class AjusteInventarioForm(forms.Form):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "form-control")
+
+
+class ProveedorForm(forms.ModelForm):
+    class Meta:
+        model = Proveedor
+        fields = ["nombre", "rfc", "contacto", "telefono", "email", "direccion", "notas", "activo"]
+        widgets = {"notas": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            css = "form-check-input" if name == "activo" else "form-control"
+            field.widget.attrs.setdefault("class", css)
+
+
+class CompraForm(forms.ModelForm):
+    class Meta:
+        model = Compra
+        fields = ["proveedor", "documento", "notas"]
+        widgets = {
+            "documento": forms.TextInput(attrs={"placeholder": "Factura, remisión o nota"}),
+            "notas": forms.TextInput(attrs={"placeholder": "Observaciones opcionales"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["proveedor"].queryset = Proveedor.objects.filter(activo=True).order_by("nombre")
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "form-control")
+
+
+class CompraItemForm(forms.ModelForm):
+    class Meta:
+        model = CompraItem
+        fields = ["producto", "cantidad_presentaciones", "factor_conversion", "costo_total"]
+        widgets = {
+            "cantidad_presentaciones": forms.NumberInput(attrs={"min": "0.001", "step": "0.001"}),
+            "factor_conversion": forms.NumberInput(attrs={"min": "0.001", "step": "0.001"}),
+            "costo_total": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["producto"].queryset = Producto.objects.filter(activo=True).order_by("nombre")
+        self.fields["factor_conversion"].initial = self.fields["factor_conversion"].initial or 1
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "form-control")
+
+
+class BaseCompraItemFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        productos = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+            producto = form.cleaned_data.get("producto")
+            if not producto:
+                continue
+            if producto.pk in productos:
+                raise forms.ValidationError(f"El producto {producto.nombre} aparece más de una vez.")
+            productos.add(producto.pk)
+
+
+CompraItemFormSet = inlineformset_factory(
+    Compra,
+    CompraItem,
+    form=CompraItemForm,
+    formset=BaseCompraItemFormSet,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
