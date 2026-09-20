@@ -43,6 +43,15 @@ function showApp() {
   navigate(currentView);
 }
 
+function showWelcome() {
+  sessionStorage.removeItem(SESSION_KEY);
+  $("#app").classList.add("hidden");
+  $("#welcome").classList.remove("hidden");
+  $("#main-nav").classList.remove("open");
+  $("#menu-toggle").setAttribute("aria-expanded", "false");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function navigate(view) {
   currentView = view;
   $$("[data-view]").forEach(button => button.classList.toggle("active", button.dataset.view === view));
@@ -298,6 +307,11 @@ function toast(message) {
 }
 
 document.addEventListener("click", event => {
+  const homeLink = event.target.closest("[data-go-home]");
+  if (homeLink) {
+    showWelcome();
+    return;
+  }
   const navigation = event.target.closest("[data-view]");
   if (navigation) navigate(navigation.dataset.view);
 });
