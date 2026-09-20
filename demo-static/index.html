@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Demostración interactiva de un punto de venta para abarrotes.">
+  <meta name="theme-color" content="#0f766e">
+  <title>Abarrotes La Esquina · Demo POS</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="loading" class="loading-screen">
+    <div class="loader-mark">LE</div>
+    <p>Preparando la demostración…</p>
+  </div>
+
+  <section id="welcome" class="welcome hidden" aria-labelledby="welcome-title">
+    <div class="welcome-copy">
+      <span class="eyebrow">Demostración interactiva</span>
+      <h1 id="welcome-title">Controla la venta y el inventario desde un solo lugar.</h1>
+      <p>Recorre una operación completa de abarrotes: abre caja, escanea productos, cobra, recibe mercancía y consulta la utilidad.</p>
+      <div class="welcome-actions">
+        <button class="button primary large" id="enter-demo">Entrar a la demo</button>
+        <span>Sin registro · Sin datos reales</span>
+      </div>
+      <div class="feature-row">
+        <article><strong>Cobro ágil</strong><span>Códigos, cambio y ticket</span></article>
+        <article><strong>Inventario claro</strong><span>Existencias y alertas</span></article>
+        <article><strong>Decisiones mejores</strong><span>Costos y utilidad</span></article>
+      </div>
+    </div>
+    <div class="welcome-preview" aria-hidden="true">
+      <div class="preview-top"><span></span><span></span><span></span></div>
+      <div class="preview-body">
+        <div class="preview-sidebar"></div>
+        <div class="preview-content">
+          <div class="preview-kicker"></div><div class="preview-title"></div>
+          <div class="preview-cards"><i></i><i></i><i></i></div>
+          <div class="preview-table"></div>
+        </div>
+      </div>
+      <div class="floating-total"><span>Total</span><strong>$86.00</strong></div>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <div class="demo-banner">
+      <span><strong>Demo local:</strong> tus cambios se guardan solo en este navegador.</span>
+      <button id="reset-demo" class="link-button">Restablecer datos</button>
+    </div>
+    <header class="topbar">
+      <button class="brand" data-view="pos" aria-label="Ir a caja"><span class="brand-mark">LE</span><span><strong>Abarrotes La Esquina</strong><small>Punto de venta</small></span></button>
+      <button class="menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false">☰</button>
+      <nav id="main-nav" aria-label="Navegación principal">
+        <button data-view="pos" class="active">Caja</button>
+        <button data-view="shift">Turno</button>
+        <button data-view="inventory">Inventario</button>
+        <button data-view="purchases">Compras</button>
+        <button data-view="suppliers">Proveedores</button>
+        <button data-view="reports">Cortes</button>
+      </nav>
+      <div class="user-chip"><span>UD</span><div><strong>Usuario demo</strong><small>Administrador</small></div></div>
+    </header>
+    <main id="view" tabindex="-1"></main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -57,24 +57,19 @@ Las ventas realizadas antes de guardar costos históricos se estiman durante la 
 
 ## Demo separada para Vercel
 
-El proyecto conserva dos perfiles sin duplicar el código:
+El proyecto conserva dos aplicaciones independientes:
 
-- `caramelo.settings`: instalación normal, usada localmente y por el negocio.
-- `caramelo.settings_demo`: demostración pública con portada, acceso de un clic, aviso permanente y datos ficticios restablecibles.
+- `caramelo/`: el POS Django real con su base de datos relacional.
+- `demo-static/`: una demostración estática para clientes, sin backend ni datos reales.
 
-En Vercel se selecciona automáticamente el perfil demo. La base debe ser PostgreSQL externa porque el sistema de archivos de las funciones no conserva una base SQLite. Para desplegar:
+La demo carga su catálogo inicial desde `demo-static/data/demo.json` y guarda los cambios en `localStorage`. Cada navegador tiene su propia copia: abrir turnos, cobrar, recibir compras o restablecer datos no afecta a otros visitantes ni a la instalación real.
 
-1. Importa este repositorio en Vercel y conecta una base PostgreSQL (por ejemplo, Neon desde Marketplace).
-2. Define `DATABASE_URL` y `POS_SECRET_KEY` en los tres ambientes de Vercel.
-3. Opcionalmente cambia `POS_DEMO_USERNAME` y `POS_DEMO_PASSWORD`; los valores predeterminados son `demo` y `DemoPOS2026!`.
-4. Despliega. El script de compilación ejecuta migraciones, crea el catálogo ficticio y recopila los estáticos.
+`vercel.json` publica exclusivamente `demo-static/`, sin ejecutar Django, instalar dependencias o solicitar variables de entorno. Basta importar este repositorio en Vercel y desplegarlo.
 
-Para revisar ese mismo perfil localmente sin afectar la base normal (usa automáticamente `caramelo/db_demo.sqlite3`):
+Para revisar la demo localmente:
 
 ```powershell
-python caramelo\manage.py migrate --settings=caramelo.settings_demo
-python caramelo\manage.py seed_demo --settings=caramelo.settings_demo
-python caramelo\manage.py runserver --settings=caramelo.settings_demo
+python -m http.server 8080 --directory demo-static
 ```
 
-La demo abre en `http://127.0.0.1:8000/`. El comando `seed_demo --reset` borra y reconstruye solo los datos comerciales de la base conectada, y se niega a ejecutarse con la configuración normal.
+Abre `http://127.0.0.1:8080/`. Para modificar los datos iniciales edita `demo-static/data/demo.json`; el botón **Restablecer datos** vuelve a cargar esa información en el navegador.

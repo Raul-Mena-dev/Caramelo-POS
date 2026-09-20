@@ -6,8 +6,7 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    default_settings = "caramelo.settings_demo" if os.environ.get("VERCEL") else "caramelo.settings"
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', default_settings)
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'caramelo.settings')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

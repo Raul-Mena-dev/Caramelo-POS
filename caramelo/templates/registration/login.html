@@ -24,16 +24,6 @@
           <div class="alert alert-danger">Usuario o contraseña incorrectos</div>
           {% endif %}
 
-          {% if demo_mode %}
-          <div class="alert alert-info small">
-            Demo: <strong>{{ demo_username }}</strong> / <strong>{{ demo_password }}</strong>
-          </div>
-          <form method="post" action="{% url 'demo_login' %}" class="mb-3">
-            {% csrf_token %}
-            <button class="btn btn-success w-100">Entrar con un clic</button>
-          </form>
-          {% endif %}
-
           <form method="post">
             {% csrf_token %}
             <input name="username" class="form-control mb-2" placeholder="Usuario" required autofocus>

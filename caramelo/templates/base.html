@@ -46,18 +46,6 @@
 </head>
 <body>
 
-{% if demo_mode %}
-<div class="alert alert-warning rounded-0 border-0 mb-0 py-2 text-center small" role="status">
-  <strong>Modo demostración:</strong> la información es ficticia y compartida.
-  {% if request.user.is_authenticated %}
-    <form method="post" action="{% url 'demo_reset' %}" class="d-inline ms-2">
-      {% csrf_token %}
-      <button class="btn btn-sm btn-outline-dark py-0">Restablecer demo</button>
-    </form>
-  {% endif %}
-</div>
-{% endif %}
-
 <nav class="navbar navbar-dark bg-dark px-3">
   <a class="navbar-brand mb-0 h1 d-flex align-items-center gap-2" href="{% url 'pos_home' %}">
     {% if negocio.logo_url %}<img src="{{ negocio.logo_url }}" alt="{{ negocio.nombre_comercial }}" width="28" height="28">{% endif %}
@@ -72,7 +60,7 @@
       {% if request.user.is_superuser or request.user|has_group:"Administradores" %}
         <a href="{% url 'catalog_inventario' %}" class="btn btn-sm btn-outline-light">Inventario</a>
         <a href="{% url 'catalog_compras' %}" class="btn btn-sm btn-outline-light">Compras</a>
-        {% if not demo_mode %}<a href="{% url 'admin:core_configuracionnegocio_changelist' %}" class="btn btn-sm btn-outline-light">Configuración</a>{% endif %}
+        <a href="{% url 'admin:core_configuracionnegocio_changelist' %}" class="btn btn-sm btn-outline-light">Configuración</a>
       {% endif %}
     {% endif %}
 

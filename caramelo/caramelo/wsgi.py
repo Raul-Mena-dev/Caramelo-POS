@@ -11,7 +11,6 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-default_settings = "caramelo.settings_demo" if os.environ.get("VERCEL") else "caramelo.settings"
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', default_settings)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'caramelo.settings')
 
 application = get_wsgi_application()
